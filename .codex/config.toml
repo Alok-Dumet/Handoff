@@ -1,0 +1,82 @@
+[rules]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not stage files."
+pattern = [
+  { token = "git" },
+  { token = "add" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not create commits."
+pattern = [
+  { token = "git" },
+  { token = "commit" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not push to remotes."
+pattern = [
+  { token = "git" },
+  { token = "push" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not pull from remotes."
+pattern = [
+  { token = "git" },
+  { token = "pull" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not switch branches."
+pattern = [
+  { token = "git" },
+  { token = "checkout" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not switch branches."
+pattern = [
+  { token = "git" },
+  { token = "switch" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not rewrite history."
+pattern = [
+  { token = "git" },
+  { token = "rebase" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not merge branches."
+pattern = [
+  { token = "git" },
+  { token = "merge" }
+]
+
+
+[[rules.prefix_rules]]
+decision = "forbidden"
+justification = "Do not reset repo state."
+pattern = [
+  { token = "git" },
+  { token = "reset" }
+]

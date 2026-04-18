@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" role="img" aria-labelledby="title desc">
+  <title id="title">Upgrade banner</title>
+  <desc id="desc">Stylized premium vehicle scene.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#132238"/>
+      <stop offset="100%" stop-color="#0A1628"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="400" fill="url(#bg)"/>
+  <rect y="288" width="800" height="112" fill="#182C47"/>
+  <circle cx="160" cy="96" r="44" fill="#F5A623" opacity="0.2"/>
+  <circle cx="690" cy="78" r="64" fill="#F5A623" opacity="0.12"/>
+  <path d="M180 250h56l48-66h196l80 66h34c20 0 36 16 36 36v18H146v-18c0-20 16-36 34-36Z" fill="#F5A623"/>
+  <path d="M310 190h154l52 44H278l32-44Z" fill="#FFF4D6"/>
+  <circle cx="272" cy="304" r="38" fill="#0A1628"/>
+  <circle cx="544" cy="304" r="38" fill="#0A1628"/>
+  <circle cx="272" cy="304" r="16" fill="#D9E2EC"/>
+  <circle cx="544" cy="304" r="16" fill="#D9E2EC"/>
+</svg>

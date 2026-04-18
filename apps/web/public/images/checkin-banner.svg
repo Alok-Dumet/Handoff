@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" role="img" aria-labelledby="title desc">
+  <title id="title">Pre check-in banner</title>
+  <desc id="desc">Abstract travel card with booking and document motif.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0A1628"/>
+      <stop offset="100%" stop-color="#1A365D"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="400" fill="url(#bg)"/>
+  <circle cx="700" cy="80" r="72" fill="#F5A623" opacity="0.22"/>
+  <circle cx="110" cy="330" r="96" fill="#F5A623" opacity="0.12"/>
+  <rect x="130" y="86" width="360" height="228" rx="18" fill="#FFFFFF" opacity="0.96"/>
+  <rect x="164" y="126" width="172" height="18" rx="9" fill="#D9E2EC"/>
+  <rect x="164" y="160" width="250" height="14" rx="7" fill="#E7EDF3"/>
+  <rect x="164" y="188" width="210" height="14" rx="7" fill="#E7EDF3"/>
+  <rect x="164" y="242" width="116" height="34" rx="17" fill="#F5A623"/>
+  <rect x="532" y="120" width="118" height="148" rx="16" fill="#F5A623"/>
+  <rect x="552" y="148" width="78" height="10" rx="5" fill="#0A1628" opacity="0.75"/>
+  <rect x="552" y="172" width="62" height="10" rx="5" fill="#0A1628" opacity="0.55"/>
+  <rect x="552" y="212" width="46" height="46" rx="10" fill="#FFFFFF" opacity="0.92"/>
+</svg>

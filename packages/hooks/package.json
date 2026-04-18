@@ -1,0 +1,17 @@
+{
+  "name": "@handoff/hooks",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "swr": "^2.0.0"
+  },
+  "devDependencies": {
+    "react": "^18.2.0",
+    "swr": "^2.2.0",
+    "@types/react": "^18.2.0",
+    "typescript": "^5.3.0"
+  }
+}

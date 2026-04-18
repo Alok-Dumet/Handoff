@@ -1,0 +1,14 @@
+{
+  "name": "handoff",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter handoff-web dev\" \"pnpm --filter handoff-bff start:dev\"",
+    "build": "pnpm --filter @handoff/ui build && pnpm --filter handoff-bff build && pnpm --filter handoff-web build",
+    "storybook": "pnpm --filter @handoff/ui storybook",
+    "test": "pnpm --filter handoff-web test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}
