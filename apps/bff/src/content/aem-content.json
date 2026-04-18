@@ -1,0 +1,25 @@
+{
+  "pre-checkin": {
+    ":type": "handoff/components/page",
+    ":path": "/content/handoff/pre-checkin",
+    "title": "Almost There! Complete Your Check-In",
+    "body": "Save time at the counter by completing your pre check-in now. It only takes 2 minutes.",
+    "ctaLabel": "Start Check-In",
+    "imageUrl": "/images/checkin-banner.svg"
+  },
+  "vehicle-upgrade": {
+    ":type": "handoff/components/page",
+    ":path": "/content/handoff/vehicle-upgrade",
+    "title": "Upgrade Your Ride",
+    "body": "Make your journey even better. Choose from our premium selection.",
+    "ctaLabel": "View Upgrades",
+    "imageUrl": "/images/upgrade-banner.svg"
+  },
+  "e-receipt": {
+    ":type": "handoff/components/page",
+    ":path": "/content/handoff/e-receipt",
+    "title": "You're All Set!",
+    "body": "Your e-receipt has been sent to your email. See you at the counter.",
+    "imageUrl": "/images/receipt-banner.svg"
+  }
+}
