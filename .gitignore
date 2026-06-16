@@ -1,0 +1,10 @@
+node_modules
+copy.md
+.next
+dist
+build
+.turbo
+.env
+.env.local
+.DS_Store
+*.log
