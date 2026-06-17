@@ -16,6 +16,7 @@
 ### Frontend
 - Next.js (App Router)
 - MUI (component library + styling)
+- TanStack Query (client-side server-state: caching, refetch, mutations) — for interactive/client components; initial server reads stay in Server Components
 - Storybook (component development & docs) — built with Vite
 - Vite (Storybook's bundler only; Next has its own bundler)
 
