@@ -1,1 +1,1 @@
-export const uiPackageName = "@handoff/ui";
+export * from "./JourneyPrompt.js";
