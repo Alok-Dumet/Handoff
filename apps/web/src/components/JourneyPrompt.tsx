@@ -1,8 +1,11 @@
+"use client";
+
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { JourneyTarget } from "@handoff/contracts";
+import { useJourneyRedirect } from "../hooks/useJourneyRedirect";
 
 export default function JourneyPrompt({
   bookingId,
@@ -11,6 +14,8 @@ export default function JourneyPrompt({
   bookingId: string;
   journey: JourneyTarget;
 }) {
+  const { href, redirectToJourney } = useJourneyRedirect(journey);
+
   return (
     <Paper
       variant="outlined"
@@ -36,7 +41,15 @@ export default function JourneyPrompt({
             Booking {bookingId}
           </Typography>
         </Stack>
-        <Button href={journey.path} variant="contained" size="small">
+        <Button
+          href={href}
+          onClick={(event) => {
+            event.preventDefault();
+            redirectToJourney();
+          }}
+          variant="contained"
+          size="small"
+        >
           {journey.ctaLabel}
         </Button>
       </Stack>
