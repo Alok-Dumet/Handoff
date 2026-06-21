@@ -6,12 +6,15 @@ import "@fontsource/roboto/700.css";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
+import { getBrandConfig } from "../brands";
 import theme from "../theme";
 import Providers from "../providers";
 
+const brand = getBrandConfig(process.env.BRAND);
+
 export const metadata: Metadata = {
-  title: "HandOff",
-  description: "Car rental platform",
+  title: brand.metadata.title,
+  description: brand.metadata.description,
 };
 
 export default function RootLayout({

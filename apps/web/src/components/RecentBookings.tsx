@@ -11,21 +11,29 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useRecentBookings } from "../hooks/useRecentBookings";
 
-export default function RecentBookings() {
+export default function RecentBookings({
+  heading,
+  emptyMessage,
+  errorMessage,
+}: {
+  heading: string;
+  emptyMessage: string;
+  errorMessage: string;
+}) {
   const query = useRecentBookings();
   const bookings = query.data ?? [];
 
   return (
     <Box component="section" sx={{ mt: 4 }}>
       <Typography variant="h5" component="h2" gutterBottom>
-        Recent bookings
+        {heading}
       </Typography>
       {query.isLoading ? (
         <CircularProgress size={24} />
       ) : query.isError ? (
-        <Alert severity="error">Could not load bookings.</Alert>
+        <Alert severity="error">{errorMessage}</Alert>
       ) : bookings.length === 0 ? (
-        <Alert severity="info">No bookings yet.</Alert>
+        <Alert severity="info">{emptyMessage}</Alert>
       ) : (
         <List disablePadding>
           {bookings.map((booking) => (

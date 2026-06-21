@@ -12,6 +12,9 @@ export default async function Home() {
 
   return (
     <Container maxWidth="sm" sx={{ py: 6 }}>
+      <Typography variant="overline" color="primary.main">
+        {brand.copy.appEyebrow}
+      </Typography>
       <Typography variant="h4" component="h1" gutterBottom>
         {brand.copy.vehicleListHeading}
       </Typography>
@@ -23,7 +26,11 @@ export default async function Home() {
           <VehicleCard key={v.id} vehicle={v} />
         ))}
       </Stack>
-      <RecentBookings />
+      <RecentBookings
+        heading={brand.copy.recentBookingsHeading}
+        emptyMessage={brand.copy.recentBookingsEmpty}
+        errorMessage={brand.copy.recentBookingsError}
+      />
     </Container>
   );
 }
