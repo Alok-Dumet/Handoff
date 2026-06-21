@@ -7,6 +7,7 @@ import { ContentModule } from './content/content.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
 import { ReservationsModule } from './reservations/reservations.module';
+import { RentalsModule } from './rentals/rentals.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ReservationsModule } from './reservations/reservations.module';
     AuthModule,
     CustomersModule,
     ReservationsModule,
+    RentalsModule,
   ],
   controllers: [AppController],
 })
