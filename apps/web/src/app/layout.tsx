@@ -3,6 +3,7 @@ import "@fontsource/roboto/300.css";
 import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { getBrandConfig } from "../brands";
 import AppShell from "../components/AppShell";
@@ -21,14 +22,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>
-        <AppRouterCacheProvider>
-          <Providers brand={brand}>
-            <AppShell brand={brand}>{children}</AppShell>
-          </Providers>
-        </AppRouterCacheProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body>
+          <AppRouterCacheProvider>
+            <Providers brand={brand}>
+              <AppShell brand={brand}>{children}</AppShell>
+            </Providers>
+          </AppRouterCacheProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

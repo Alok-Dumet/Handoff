@@ -1,3 +1,7 @@
+import {
+  SignInButton,
+  UserButton,
+} from "@clerk/nextjs";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -70,9 +74,15 @@ export default function AppShell({
             <Button href="/brands/roadline" size="small" variant="outlined">
               Roadline
             </Button>
-            <Button href="/account" size="small" variant="contained">
-              Sign in
+            <Button href="/account" size="small" variant="outlined">
+              Account
             </Button>
+            <SignInButton mode="modal">
+              <Button size="small" variant="contained">
+                Sign in
+              </Button>
+            </SignInButton>
+            <UserButton />
           </Stack>
         </Toolbar>
       </AppBar>
