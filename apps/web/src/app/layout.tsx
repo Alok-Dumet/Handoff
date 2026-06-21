@@ -5,6 +5,7 @@ import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { getBrandConfig } from "../brands";
+import AppShell from "../components/AppShell";
 import Providers from "../providers";
 
 const brand = getBrandConfig(process.env.BRAND);
@@ -23,7 +24,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AppRouterCacheProvider>
-          <Providers brand={brand}>{children}</Providers>
+          <Providers brand={brand}>
+            <AppShell brand={brand}>{children}</AppShell>
+          </Providers>
         </AppRouterCacheProvider>
       </body>
     </html>

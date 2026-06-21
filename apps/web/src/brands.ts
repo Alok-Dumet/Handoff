@@ -32,7 +32,7 @@ export const brandConfigs = {
       description: "Car rental platform",
     },
     copy: {
-      appEyebrow: "Customer journey demo",
+      appEyebrow: "Customer rental portal",
       vehicleListHeading: "Available vehicles",
       vehicleListIntro: "Choose a vehicle and reserve it for your next trip.",
       recentBookingsHeading: "Recent bookings",
