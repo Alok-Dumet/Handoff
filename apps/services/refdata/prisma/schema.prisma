@@ -23,6 +23,12 @@ enum VehicleClass {
   suv
 }
 
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+}
+
 model Vehicle {
   id           String       @id
   make         String
@@ -32,6 +38,22 @@ model Vehicle {
   transmission Transmission
   seats        Int
   pricePerDay  Int
+  bookings     Booking[]
 
   @@map("vehicles")
+}
+
+model Booking {
+  id            String        @id
+  vehicleId     String
+  customerName  String
+  customerEmail String
+  startDate     DateTime
+  endDate       DateTime
+  status        BookingStatus @default(pending)
+  createdAt     DateTime      @default(now())
+  vehicle       Vehicle       @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+  @@map("bookings")
 }

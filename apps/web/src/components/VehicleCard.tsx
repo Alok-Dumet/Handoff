@@ -4,6 +4,7 @@ import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import type { VehicleSummary } from "@handoff/contracts";
+import ReserveButton from "./ReserveButton";
 
 // Presentational card for a single vehicle. Pure props in, no data fetching —
 // so it's reusable and easy to document in Storybook.
@@ -35,6 +36,7 @@ export default function VehicleCard({ vehicle }: { vehicle: VehicleSummary }) {
             {vehicle.priceLabel}
           </Typography>
         </Stack>
+        <ReserveButton vehicle={vehicle} />
       </CardContent>
     </Card>
   );

@@ -3,6 +3,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { VehicleSummaryListSchema } from "@handoff/contracts";
 import VehicleCard from "../components/VehicleCard";
+import RecentBookings from "../components/RecentBookings";
 
 // Server Component: runs on the server, so it calls the BFF directly.
 // No caching yet — always fetch fresh while we build the skeleton.
@@ -29,6 +30,7 @@ export default async function Home() {
           <VehicleCard key={v.id} vehicle={v} />
         ))}
       </Stack>
+      <RecentBookings />
     </Container>
   );
 }

@@ -164,3 +164,75 @@ Docker Desktop must be running on Windows for the DB to be reachable. After a ma
 **Gotcha (MUI 9):** `Stack` no longer takes `justifyContent`/`alignItems`/`flexWrap` as direct props — they go through `sx`. Fixed in VehicleCard.
 
 **Honest note on scope:** MUI is fully exercised. TanStack Query + Storybook are correctly wired but lightly used so far (one component story; no client-side queries yet) — they'll earn their keep as interactive components and a shared component library appear. This matches the deferred-libs plan.
+
+---
+
+## Phase 5 — booking intent write slice
+
+**What:** Added the first write workflow: a user can create a pending booking for a vehicle. The data path is now **web → BFF → refdata → Postgres** for writes, while the vehicle list remains server-rendered.
+
+**Contracts:** Added `libs/contracts/src/bookings` with `CreateBookingSchema`, `BookingSchema`, and `BookingStatusSchema`. The request includes `vehicleId`, `customerName`, `customerEmail`, `startDate`, and `endDate`; the response adds `id`, `status`, and `createdAt`.
+
+**Database/refdata:** Added a Prisma `Booking` model, `BookingStatus` enum, and migration `20260621170000_add_bookings`. Refdata now has `POST /bookings`, validates input with the shared contract, confirms the vehicle exists, writes a pending booking, and returns a contract-shaped response.
+
+**BFF:** Added `POST /bookings`, validates the incoming body, forwards it to refdata, and validates the refdata response before returning it to the web app.
+
+**Web:** Added `ReserveButton`, a client component using TanStack Query `useMutation`. `VehicleCard` now renders a Reserve action for each vehicle. For this first slice, the form uses demo customer data and readonly today/tomorrow dates so the write path is proven without designing the full booking form yet.
+
+**Tests:** Added focused service tests for BFF booking forwarding and refdata booking creation/missing-vehicle behavior. Refdata service tests mock Prisma and contract parsing to avoid requiring a database or generated Prisma runtime in Jest.
+
+**Verified:**
+- `pnpm build`
+- `pnpm test`
+- `pnpm lint`
+- Applied the local Prisma migration with `prisma migrate deploy`.
+- Live POST through BFF returned a persisted pending booking.
+- Next dev page renders Reserve buttons.
+
+**Operational note:** In this sandbox, direct local network checks against `localhost:3000/3001` and Postgres required escalated execution even though the services were running. The app itself is available at `http://localhost:3000`.
+
+### Phase 5 follow-up — real booking form + bookings read path
+
+**What changed:** Replaced the demo-only reserve action with a real booking form and added a bookings read path.
+
+**Contracts:** `CreateBookingSchema` and `BookingSchema` now enforce `endDate > startDate`; added `BookingListSchema` for read responses.
+
+**APIs:**
+- refdata now supports `GET /bookings` and `POST /bookings`.
+- BFF now supports `GET /bookings` and `POST /bookings`.
+- Controllers use `safeParse` and return `400 Bad Request` for invalid booking payloads.
+- BFF preserves upstream refdata error status/body instead of throwing a generic error.
+
+**Web:**
+- `ReserveButton` is now a client-side form with name, email, start date, and end date.
+- Booking mutations invalidate the `["bookings"]` TanStack Query cache.
+- Added `RecentBookings`, which loads `GET /bookings` and shows the latest bookings.
+
+**Tests:** Expanded BFF/refdata booking service tests for the bookings read path and upstream error behavior.
+
+**Verified:**
+- `pnpm build`
+- `pnpm test`
+- `pnpm lint`
+- Live `GET /bookings` through BFF returned recent bookings.
+- Live `POST /bookings` through BFF created a pending booking.
+- Web page renders `Available vehicles`, Reserve forms, and `Recent bookings`.
+
+### Phase 5 follow-up — prevent overlapping reservations
+
+**What changed:** Added the first real availability rule: a vehicle cannot be booked for overlapping date ranges when an existing booking is `pending` or `confirmed`.
+
+**Rule:** For the same vehicle, refdata rejects a new booking when `existing.startDate < requested.endDate` and `existing.endDate > requested.startDate`. This allows adjacent bookings but blocks true overlaps.
+
+**API behavior:**
+- refdata returns `409 Conflict` with `Vehicle is unavailable for those dates`.
+- BFF preserves the upstream `409` status and JSON body.
+- web shows `Vehicle unavailable for those dates.` when the booking mutation receives a `409`.
+
+**Tests:** Added refdata coverage for conflict detection and BFF coverage for preserving upstream conflict responses.
+
+**Verified:**
+- `pnpm build`
+- `pnpm test`
+- `pnpm lint`
+- Live overlapping `POST /bookings` through BFF returned `HTTP/1.1 409 Conflict`.
