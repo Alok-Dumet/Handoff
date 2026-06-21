@@ -326,3 +326,19 @@ The mock content is parsed with `AemJourneyConfigSchema` at import time, so inva
 - `pnpm --filter @handoff/bff test`
 - `pnpm build`
 - `pnpm lint`
+
+---
+
+## Task 1.5 — web journey UI
+
+**What:** Added a typed web prompt for the post-booking journey target returned by the BFF.
+
+**Web:** Added `JourneyPrompt`, a small MUI panel that renders the resolved journey label, description, booking id, and CTA link from the shared `JourneyTarget` contract. `ReserveButton` now shows this prompt after a successful reservation alongside the booking success alert.
+
+**Storybook:** Added `JourneyPrompt.stories.tsx` with pre-check-in and vehicle-upgrade examples so the reusable journey UI can be reviewed in isolation.
+
+**Why:** This completes the visible customer journey behavior for successful bookings without overbuilding full journey pages yet. The app now demonstrates that the BFF decision is consumed by the Next.js UI through shared typed contracts.
+
+**Verified:**
+- `pnpm --filter @handoff/web build`
+- `pnpm --filter @handoff/web lint`

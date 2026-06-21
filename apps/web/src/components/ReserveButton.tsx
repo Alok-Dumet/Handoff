@@ -13,6 +13,7 @@ import {
   type CreateBooking,
   type VehicleSummary,
 } from "@handoff/contracts";
+import JourneyPrompt from "./JourneyPrompt";
 
 const today = new Date().toISOString().slice(0, 10);
 const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
@@ -117,9 +118,15 @@ export default function ReserveButton({
         </Button>
       </Stack>
       {mutation.data ? (
-        <Alert severity="success">
-          Reserved. Booking {mutation.data.booking.id}
-        </Alert>
+        <Stack spacing={1.5}>
+          <Alert severity="success">
+            Reserved. Booking {mutation.data.booking.id}
+          </Alert>
+          <JourneyPrompt
+            bookingId={mutation.data.booking.id}
+            journey={mutation.data.nextJourney}
+          />
+        </Stack>
       ) : null}
       {mutation.isError ? (
         <Alert severity="error">
