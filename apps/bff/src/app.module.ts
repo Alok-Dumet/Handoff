@@ -5,6 +5,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { JourneysModule } from './journeys/journeys.module';
 import { ContentModule } from './content/content.module';
 import { AuthModule } from './auth/auth.module';
+import { CustomersModule } from './customers/customers.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { AuthModule } from './auth/auth.module';
     JourneysModule,
     ContentModule,
     AuthModule,
+    CustomersModule,
   ],
   controllers: [AppController],
 })
