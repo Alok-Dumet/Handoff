@@ -1,0 +1,38 @@
+{
+  "name": "@handoff/ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@handoff/contracts": "workspace:*",
+    "@mui/material": "^9.1.1",
+    "react": "^19.2.4"
+  },
+  "devDependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@handoff/contracts": "workspace:*",
+    "@mui/material": "^9.1.1",
+    "@types/react": "^19",
+    "react": "^19.2.4",
+    "typescript": "^5.7.3"
+  }
+}
