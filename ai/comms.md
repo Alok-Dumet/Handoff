@@ -302,3 +302,27 @@ The mock content is parsed with `AemJourneyConfigSchema` at import time, so inva
 - `pnpm --filter @handoff/bff test`
 - `pnpm --filter @handoff/bff build`
 - `pnpm --filter @handoff/bff lint`
+
+---
+
+## Task 1.4 — booking response includes next journey
+
+**What:** Updated BFF booking creation so successful `POST /bookings` responses include the selected post-booking journey.
+
+**Contracts:** Added `BookingJourneyResponseSchema` / `BookingJourneyResponse` in `@handoff/contracts`. The BFF booking response is now:
+- `booking`
+- `nextJourney`
+- `alternatives`
+
+**BFF:** `BookingsService.create` still persists through refdata, then calls `JourneysService.resolve`. Refdata remains focused on persistence and availability; the BFF owns journey decisioning.
+
+**Current journey signal behavior:** New pending bookings resolve with `checkedInEligible: true` and the other signals false, so the default successful booking path is `pre-check-in`. Later tasks can make these signals data/content driven.
+
+**Web compatibility:** `ReserveButton` now parses `BookingJourneyResponseSchema` so the current reservation UI keeps working with the new response shape. Rendering the journey target itself is reserved for task 1.5.
+
+**Tests:** Updated BFF booking service tests to assert that booking creation calls `JourneysService.resolve` and returns the expected `nextJourney`.
+
+**Verified:**
+- `pnpm --filter @handoff/bff test`
+- `pnpm build`
+- `pnpm lint`

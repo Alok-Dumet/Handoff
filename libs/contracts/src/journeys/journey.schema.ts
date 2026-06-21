@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BookingStatusSchema } from '../bookings/index.js';
+import { BookingSchema, BookingStatusSchema } from '../bookings/index.js';
 
 export const JourneyTypeSchema = z.enum([
   'pre-check-in',
@@ -56,4 +56,13 @@ export const ResolveJourneyResponseSchema = z.object({
 });
 export type ResolveJourneyResponse = z.infer<
   typeof ResolveJourneyResponseSchema
+>;
+
+export const BookingJourneyResponseSchema = z.object({
+  booking: BookingSchema,
+  nextJourney: JourneyTargetSchema,
+  alternatives: z.array(JourneyTargetSchema).default([]),
+});
+export type BookingJourneyResponse = z.infer<
+  typeof BookingJourneyResponseSchema
 >;

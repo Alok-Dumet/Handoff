@@ -5,7 +5,11 @@ import {
   Get,
   Post,
 } from '@nestjs/common';
-import { type Booking, CreateBookingSchema } from '@handoff/contracts';
+import {
+  type Booking,
+  type BookingJourneyResponse,
+  CreateBookingSchema,
+} from '@handoff/contracts';
 import { BookingsService } from './bookings.service';
 
 @Controller('bookings')
@@ -18,7 +22,7 @@ export class BookingsController {
   }
 
   @Post()
-  create(@Body() body: unknown): Promise<Booking> {
+  create(@Body() body: unknown): Promise<BookingJourneyResponse> {
     const result = CreateBookingSchema.safeParse(body);
     if (!result.success) {
       throw new BadRequestException(result.error.issues);

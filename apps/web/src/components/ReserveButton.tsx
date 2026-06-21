@@ -7,9 +7,9 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  BookingSchema,
+  BookingJourneyResponseSchema,
   CreateBookingSchema,
-  type Booking,
+  type BookingJourneyResponse,
   type CreateBooking,
   type VehicleSummary,
 } from "@handoff/contracts";
@@ -26,7 +26,7 @@ class BookingRequestError extends Error {
   }
 }
 
-async function createBooking(input: CreateBooking): Promise<Booking> {
+async function createBooking(input: CreateBooking): Promise<BookingJourneyResponse> {
   const bffUrl = process.env.NEXT_PUBLIC_BFF_URL ?? "http://localhost:3001";
   const payload = CreateBookingSchema.parse(input);
 
@@ -40,7 +40,7 @@ async function createBooking(input: CreateBooking): Promise<Booking> {
     throw new BookingRequestError(`Booking failed with ${res.status}`, res.status);
   }
 
-  return BookingSchema.parse(await res.json());
+  return BookingJourneyResponseSchema.parse(await res.json());
 }
 
 export default function ReserveButton({
@@ -117,7 +117,9 @@ export default function ReserveButton({
         </Button>
       </Stack>
       {mutation.data ? (
-        <Alert severity="success">Reserved. Booking {mutation.data.id}</Alert>
+        <Alert severity="success">
+          Reserved. Booking {mutation.data.booking.id}
+        </Alert>
       ) : null}
       {mutation.isError ? (
         <Alert severity="error">
