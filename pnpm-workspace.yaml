@@ -1,7 +1,11 @@
 packages:
   - "apps/*"
-  - "packages/*"
-  - "services/*"
+  - "apps/services/*"
+  - "libs/*"
 allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
   sharp: true
   unrs-resolver: true

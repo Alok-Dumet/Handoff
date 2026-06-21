@@ -1,0 +1,37 @@
+// refdata service database schema.
+// The Vehicle model mirrors @handoff/contracts VehicleSchema (the source of truth).
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Transmission {
+  automatic
+  manual
+}
+
+enum VehicleClass {
+  economy
+  compact
+  premium
+  suv
+}
+
+model Vehicle {
+  id           String       @id
+  make         String
+  model        String
+  year         Int
+  class        VehicleClass
+  transmission Transmission
+  seats        Int
+  pricePerDay  Int
+
+  @@map("vehicles")
+}

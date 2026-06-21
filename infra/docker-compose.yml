@@ -1,0 +1,23 @@
+# Local-dev infrastructure. Postgres for the refdata service (Phase 3).
+# Usage: docker compose -f infra/docker-compose.yml up -d
+services:
+  refdata-db:
+    image: postgres:17
+    container_name: handoff-refdata-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: handoff
+      POSTGRES_PASSWORD: handoff
+      POSTGRES_DB: refdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - refdata-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U handoff -d refdata"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  refdata-db-data:

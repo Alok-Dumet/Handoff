@@ -80,3 +80,19 @@ pattern = [
   { token = "git" },
   { token = "reset" }
 ]
+
+[[hooks.PermissionRequest]]
+
+[[hooks.PermissionRequest.hooks]]
+type = "command"
+command = 'bash "$(git rev-parse --show-toplevel)/.codex/hooks/play-clash.sh"'
+timeout = 5
+statusMessage = "Playing approval sound"
+
+[[hooks.Stop]]
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = 'bash "$(git rev-parse --show-toplevel)/.codex/hooks/play-clash.sh"'
+timeout = 5
+statusMessage = "Playing completion sound"

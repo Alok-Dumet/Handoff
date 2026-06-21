@@ -1,10 +1,37 @@
-node_modules
-copy.md
-.next
-dist
-build
-.turbo
-.env
-.env.local
-.DS_Store
+# dependencies
+node_modules/
+
+# package manager / debug
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# build output
+.next/
+dist/
+build/
+out/
+storybook-static/
+.turbo/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# generated local files
+apps/services/refdata/src/generated/
+
+# environment
+.env
+.env.*
+!.env.example
+
+# platform / editor
+.DS_Store
+.vercel/
+
+# local project notes
+ai/
+comms.md
+copy.md
