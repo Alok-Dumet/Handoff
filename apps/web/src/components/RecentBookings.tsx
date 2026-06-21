@@ -9,14 +9,10 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useQuery } from "@tanstack/react-query";
-import { getBookings } from "../lib/client-api";
+import { useRecentBookings } from "../hooks/useRecentBookings";
 
 export default function RecentBookings() {
-  const query = useQuery({
-    queryKey: ["bookings"],
-    queryFn: getBookings,
-  });
+  const query = useRecentBookings();
   const bookings = query.data ?? [];
 
   return (
