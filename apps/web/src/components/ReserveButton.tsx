@@ -6,43 +6,12 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  BookingJourneyResponseSchema,
-  CreateBookingSchema,
-  type BookingJourneyResponse,
-  type CreateBooking,
-  type VehicleSummary,
-} from "@handoff/contracts";
+import type { VehicleSummary } from "@handoff/contracts";
 import JourneyPrompt from "./JourneyPrompt";
+import { BookingRequestError, createBooking } from "../lib/client-api";
 
 const today = new Date().toISOString().slice(0, 10);
 const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-
-class BookingRequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
-
-async function createBooking(input: CreateBooking): Promise<BookingJourneyResponse> {
-  const bffUrl = process.env.NEXT_PUBLIC_BFF_URL ?? "http://localhost:3001";
-  const payload = CreateBookingSchema.parse(input);
-
-  const res = await fetch(`${bffUrl}/bookings`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new BookingRequestError(`Booking failed with ${res.status}`, res.status);
-  }
-
-  return BookingJourneyResponseSchema.parse(await res.json());
-}
 
 export default function ReserveButton({
   vehicle,

@@ -342,3 +342,64 @@ The mock content is parsed with `AemJourneyConfigSchema` at import time, so inva
 **Verified:**
 - `pnpm --filter @handoff/web build`
 - `pnpm --filter @handoff/web lint`
+
+---
+
+## Task 1.6 — end-to-end verification and handoff update
+
+**What:** Completed the final customer journey integration verification pass.
+
+**Full validation:**
+- `pnpm build` passed across `@handoff/contracts`, `@handoff/web`, `@handoff/bff`, and `@handoff/refdata`.
+- `pnpm test` passed for BFF and refdata test suites.
+- `pnpm lint` passed across all packages.
+
+**Local smoke test:** Started the dev stack with `pnpm dev`, confirmed BFF health at `GET /health`, fetched vehicles from `GET /vehicles`, and created a booking through `POST /bookings`.
+
+**Smoke booking result:** The BFF returned a persisted pending booking plus the expected journey response:
+- `nextJourney.type`: `pre-check-in`
+- `nextJourney.path`: `/journeys/pre-check-in`
+- alternatives included `biometric`, `e-receipt`, and `vehicle-upgrade`
+
+**Note:** The smoke test created one local Postgres booking for `veh_001` from `2026-12-21` to `2026-12-22` using `smoke@example.com`.
+
+**Current task-1 state:** Customer journey strategy patterns are complete for the demo baseline. The app now has shared journey contracts, mock AEM-backed journey content, BFF strategy resolution, booking responses that include the selected journey, web UI that renders the next journey, and passing validation.
+
+---
+
+## Planning update — shared hooks
+
+**What:** Removed the completed customer journey strategy task from the active finish plan and promoted shared React hooks to the next task.
+
+**Task shape:** Split the shared hooks work into commit-sized subtasks:
+- web API client helpers
+- `useCreateBooking`
+- `useRecentBookings`
+- `useJourneyRedirect`
+- focused hook tests if practical
+- handoff update and validation
+
+**Why:** The journey milestone is complete, so the fastest next step is to reduce component data-fetching logic and demonstrate stronger React/TypeScript hook patterns before extracting a shared UI library.
+
+---
+
+## Shared hooks task 1.1 — web API client helpers
+
+**What:** Moved web BFF fetch logic out of components into runtime-specific helpers.
+
+**Web helpers:**
+- `apps/web/src/lib/client-api.ts` owns browser-side booking APIs:
+  - `createBooking`
+  - `getBookings`
+  - `BffRequestError`
+  - `BookingRequestError`
+- `apps/web/src/lib/server-api.ts` owns the App Router server-side vehicle fetch:
+  - `getVehicles`
+
+**Component changes:** `ReserveButton`, `RecentBookings`, and the home page now consume typed API helpers instead of building BFF URLs and parsing responses inline.
+
+**Why:** This prepares the next hook extraction tasks by keeping fetch mechanics, shared contract parsing, and request error status handling outside the UI components.
+
+**Verified:**
+- `pnpm --filter @handoff/web build`
+- `pnpm --filter @handoff/web lint`

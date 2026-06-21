@@ -10,18 +10,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useQuery } from "@tanstack/react-query";
-import { BookingListSchema, type Booking } from "@handoff/contracts";
-
-async function getBookings(): Promise<Booking[]> {
-  const bffUrl = process.env.NEXT_PUBLIC_BFF_URL ?? "http://localhost:3001";
-  const res = await fetch(`${bffUrl}/bookings`);
-
-  if (!res.ok) {
-    throw new Error(`Bookings failed with ${res.status}`);
-  }
-
-  return BookingListSchema.parse(await res.json());
-}
+import { getBookings } from "../lib/client-api";
 
 export default function RecentBookings() {
   const query = useQuery({
