@@ -403,3 +403,21 @@ The mock content is parsed with `AemJourneyConfigSchema` at import time, so inva
 **Verified:**
 - `pnpm --filter @handoff/web build`
 - `pnpm --filter @handoff/web lint`
+
+---
+
+## Shared hooks task 1.2 — useCreateBooking
+
+**What:** Extracted booking mutation state from `ReserveButton` into a typed React hook.
+
+**Web hooks:**
+- Added `apps/web/src/hooks/useCreateBooking.ts`.
+- Added `apps/web/src/hooks/query-keys.ts` with the shared bookings query key.
+
+**Component changes:** `ReserveButton` now calls `useCreateBooking()` and keeps only form handling plus render states. The hook owns the TanStack Query mutation, calls the typed `createBooking` API helper, and invalidates the bookings query after successful reservation creation.
+
+**Why:** This demonstrates a clean React hook boundary for mutation behavior while preserving the existing `BookingRequestError` conflict handling in the UI.
+
+**Verified:**
+- `pnpm --filter @handoff/web build`
+- `pnpm --filter @handoff/web lint`

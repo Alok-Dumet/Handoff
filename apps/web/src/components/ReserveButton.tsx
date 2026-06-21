@@ -5,10 +5,10 @@ import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { VehicleSummary } from "@handoff/contracts";
 import JourneyPrompt from "./JourneyPrompt";
-import { BookingRequestError, createBooking } from "../lib/client-api";
+import { useCreateBooking } from "../hooks/useCreateBooking";
+import { BookingRequestError } from "../lib/client-api";
 
 const today = new Date().toISOString().slice(0, 10);
 const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
@@ -18,13 +18,7 @@ export default function ReserveButton({
 }: {
   vehicle: VehicleSummary;
 }) {
-  const queryClient = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: createBooking,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["bookings"] });
-    },
-  });
+  const mutation = useCreateBooking();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
