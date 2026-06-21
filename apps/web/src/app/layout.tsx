@@ -4,10 +4,7 @@ import "@fontsource/roboto/400.css";
 import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
-import { ThemeProvider } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
 import { getBrandConfig } from "../brands";
-import theme from "../theme";
 import Providers from "../providers";
 
 const brand = getBrandConfig(process.env.BRAND);
@@ -26,10 +23,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AppRouterCacheProvider>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            <Providers>{children}</Providers>
-          </ThemeProvider>
+          <Providers brand={brand}>{children}</Providers>
         </AppRouterCacheProvider>
       </body>
     </html>
