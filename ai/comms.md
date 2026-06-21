@@ -236,3 +236,69 @@ Docker Desktop must be running on Windows for the DB to be reachable. After a ma
 - `pnpm test`
 - `pnpm lint`
 - Live overlapping `POST /bookings` through BFF returned `HTTP/1.1 409 Conflict`.
+
+---
+
+## Task 1.1 — journey contracts
+
+**What:** Added shared journey contracts in `libs/contracts/src/journeys`.
+
+**Schemas:**
+- `JourneyTypeSchema` — supported journey types: `pre-check-in`, `biometric`, `e-receipt`, `vehicle-upgrade`.
+- `JourneyTargetSchema` — typed target with `type`, `label`, `path`, `ctaLabel`, and optional `description`.
+- `ResolveJourneyRequestSchema` — booking/customer context plus strategy signals for check-in, biometric, receipt, and upgrade eligibility.
+- `ResolveJourneyResponseSchema` — selected `nextJourney` plus optional alternatives.
+
+**Why:** This gives the BFF a stable contract for customer journey strategy resolution before adding mock AEM config or strategy services.
+
+**Verified:**
+- `pnpm --filter @handoff/contracts build`
+- `pnpm --filter @handoff/contracts lint`
+
+---
+
+## Task 1.2 — mock AEM journey config
+
+**What:** Added a mock AEM-style journey configuration and a replaceable BFF content adapter.
+
+**Contracts:** Added `AemJourneyConfigSchema` / `AemJourneyConfig` in `@handoff/contracts`. It validates the config source, version, default journey, and journey targets keyed by journey type.
+
+**BFF:** Added `JourneysModule` with `JourneyContentAdapter` and `MockAemJourneyContentAdapter`. The mock config includes all required journey targets:
+- `pre-check-in`
+- `biometric`
+- `e-receipt`
+- `vehicle-upgrade`
+
+The mock content is parsed with `AemJourneyConfigSchema` at import time, so invalid content fails fast before the strategy service uses it.
+
+**Why:** This creates the content-driven boundary needed for AEM integration while keeping the current source local and deterministic.
+
+**Verified:**
+- `pnpm --filter @handoff/contracts build`
+- `pnpm --filter @handoff/bff build`
+- `pnpm --filter @handoff/refdata build`
+
+---
+
+## Task 1.3 — BFF journey strategy service
+
+**What:** Added BFF customer journey strategy resolution.
+
+**BFF pieces:**
+- `JourneysService` resolves the next journey from booking context and eligibility signals.
+- `JourneysController` exposes `POST /journeys/resolve`.
+- `JourneysModule` now wires the strategy service and mock AEM content adapter.
+
+**Strategy priority:**
+1. `e-receipt` when booking is no longer pending and receipt is available.
+2. `biometric` when biometric verification is eligible.
+3. `vehicle-upgrade` when upgrades are available.
+4. `pre-check-in` when pre-check-in is eligible.
+5. Mock AEM configured default journey as fallback.
+
+**Tests:** Added BFF unit tests for all four journey outcomes plus default fallback behavior. Tests keep the mock content local and mock contract parsing to avoid Jest/ESM package-boundary issues.
+
+**Verified:**
+- `pnpm --filter @handoff/bff test`
+- `pnpm --filter @handoff/bff build`
+- `pnpm --filter @handoff/bff lint`
