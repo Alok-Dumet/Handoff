@@ -67,6 +67,12 @@ export const brandConfigs = {
   },
 } satisfies Record<BrandId, BrandConfig>;
 
+export const brandIds = Object.keys(brandConfigs) as BrandId[];
+
+export function isBrandId(brandId: string): brandId is BrandId {
+  return brandId in brandConfigs;
+}
+
 export function getBrandConfig(brandId?: string): BrandConfig {
   if (brandId === "roadline") {
     return brandConfigs.roadline;
