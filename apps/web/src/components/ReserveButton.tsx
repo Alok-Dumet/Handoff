@@ -1,11 +1,9 @@
 "use client";
 
-import type { FormEvent } from "react";
 import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import type { VehicleSummary } from "@handoff/contracts";
+import { BookingForm, type BookingFormValues } from "@handoff/ui";
 import JourneyPrompt from "./JourneyPrompt";
 import { useCreateBooking } from "../hooks/useCreateBooking";
 import { BookingRequestError } from "../lib/client-api";
@@ -20,66 +18,21 @@ export default function ReserveButton({
 }) {
   const mutation = useCreateBooking();
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-
+  function handleSubmit(values: BookingFormValues) {
     mutation.mutate({
       vehicleId: vehicle.id,
-      customerName: String(formData.get("customerName") ?? ""),
-      customerEmail: String(formData.get("customerEmail") ?? ""),
-      startDate: String(formData.get("startDate") ?? ""),
-      endDate: String(formData.get("endDate") ?? ""),
+      ...values,
     });
   }
 
   return (
-    <Stack component="form" onSubmit={handleSubmit} spacing={1.5} sx={{ mt: 2 }}>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-        <TextField
-          name="customerName"
-          label="Name"
-          size="small"
-          required
-          fullWidth
-        />
-        <TextField
-          name="customerEmail"
-          label="Email"
-          type="email"
-          size="small"
-          required
-          fullWidth
-        />
-      </Stack>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-        <TextField
-          name="startDate"
-          label="Start"
-          type="date"
-          defaultValue={today}
-          size="small"
-          required
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <TextField
-          name="endDate"
-          label="End"
-          type="date"
-          defaultValue={tomorrow}
-          size="small"
-          required
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={mutation.isPending}
-          sx={{ minWidth: 112 }}
-        >
-          {mutation.isPending ? "Reserving" : "Reserve"}
-        </Button>
-      </Stack>
+    <Stack spacing={1.5}>
+      <BookingForm
+        defaultStartDate={today}
+        defaultEndDate={tomorrow}
+        isSubmitting={mutation.isPending}
+        onSubmit={handleSubmit}
+      />
       {mutation.data ? (
         <Stack spacing={1.5}>
           <Alert severity="success">
