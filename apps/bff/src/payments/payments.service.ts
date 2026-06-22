@@ -7,7 +7,7 @@ import {
 import {
   PaymentWebhookResultSchema,
   ReservationPaymentSessionSchema,
-  VehicleListSchema,
+  VehicleSchema,
   type CreateReservationPaymentSession,
   type PaymentWebhookResult,
   type ReservationPaymentSession,
@@ -82,20 +82,15 @@ export class PaymentsService {
   }
 
   private async findVehicle(vehicleId: string): Promise<Vehicle> {
-    const res = await fetch(`${this.refdataUrl}/vehicles`);
+    const res = await fetch(
+      `${this.refdataUrl}/vehicles/${encodeURIComponent(vehicleId)}`,
+    );
 
     if (!res.ok) {
       throw await toUpstreamException(res);
     }
 
-    const vehicles = VehicleListSchema.parse(await res.json());
-    const vehicle = vehicles.find((item) => item.id === vehicleId);
-
-    if (!vehicle) {
-      throw new HttpException({ message: 'Vehicle not found' }, 404);
-    }
-
-    return vehicle;
+    return VehicleSchema.parse(await res.json());
   }
 
   private assertValidWebhookSignature(

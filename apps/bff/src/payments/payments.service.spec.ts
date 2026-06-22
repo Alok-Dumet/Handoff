@@ -1,7 +1,7 @@
 jest.mock('@handoff/contracts', () => ({
   PaymentWebhookResultSchema: { parse: (value: unknown) => value },
   ReservationPaymentSessionSchema: { parse: (value: unknown) => value },
-  VehicleListSchema: { parse: (value: unknown) => value },
+  VehicleSchema: { parse: (value: unknown) => value },
 }));
 
 import { HttpException } from '@nestjs/common';
@@ -51,7 +51,7 @@ describe('PaymentsService', () => {
   it('creates a Stripe-compatible local authorization session for a reservation', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve([vehicle]),
+      json: () => Promise.resolve(vehicle),
     });
     const service = new PaymentsService(reservationsService as never);
 
@@ -68,7 +68,9 @@ describe('PaymentsService', () => {
         providerSessionId: 'pi_mock_booking_123',
       },
     );
-    expect(global.fetch).toHaveBeenCalledWith('http://localhost:3002/vehicles');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3002/vehicles/veh_001',
+    );
     expect(result).toEqual({
       provider: 'stripe',
       providerSessionId: 'pi_mock_booking_123',
@@ -84,7 +86,7 @@ describe('PaymentsService', () => {
   it('returns a payment-method-required session for pay-now mode', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve([vehicle]),
+      json: () => Promise.resolve(vehicle),
     });
     const service = new PaymentsService(reservationsService as never);
 

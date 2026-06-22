@@ -4,6 +4,7 @@ jest.mock('@handoff/contracts', () => ({
   PreCheckInWorkflowSchema: { parse: (value: unknown) => value },
   ResolveJourneyResponseSchema: { parse: (value: unknown) => value },
   VehicleListSchema: { parse: (value: unknown) => value },
+  VehicleSchema: { parse: (value: unknown) => value },
   VehicleUpgradeWorkflowSchema: { parse: (value: unknown) => value },
 }));
 
@@ -229,15 +230,13 @@ describe('JourneysService', () => {
       return Promise.resolve({
         ok: true,
         json: () =>
-          Promise.resolve([
-            {
-              id: 'veh_001',
-              make: 'Toyota',
-              model: 'Corolla',
-              year: 2024,
-              pricePerDay: 42,
-            },
-          ]),
+          Promise.resolve({
+            id: 'veh_001',
+            make: 'Toyota',
+            model: 'Corolla',
+            year: 2024,
+            pricePerDay: 42,
+          }),
       });
     });
 
@@ -259,6 +258,9 @@ describe('JourneysService', () => {
         { label: 'Taxes and fees', amountCents: 1008 },
       ],
     });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3002/vehicles/veh_001',
+    );
   });
 
   it('updates e-receipt delivery preference to download', async () => {
@@ -283,15 +285,13 @@ describe('JourneysService', () => {
       return Promise.resolve({
         ok: true,
         json: () =>
-          Promise.resolve([
-            {
-              id: 'veh_001',
-              make: 'Toyota',
-              model: 'Corolla',
-              year: 2024,
-              pricePerDay: 42,
-            },
-          ]),
+          Promise.resolve({
+            id: 'veh_001',
+            make: 'Toyota',
+            model: 'Corolla',
+            year: 2024,
+            pricePerDay: 42,
+          }),
       });
     });
 

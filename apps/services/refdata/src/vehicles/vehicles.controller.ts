@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { type Vehicle } from '@handoff/contracts';
 import { VehiclesService } from './vehicles.service';
 
@@ -9,5 +9,10 @@ export class VehiclesController {
   @Get()
   findAll(): Promise<Vehicle[]> {
     return this.vehiclesService.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<Vehicle> {
+    return this.vehiclesService.findOne(id);
   }
 }

@@ -9,6 +9,7 @@ import {
   PreCheckInWorkflowSchema,
   ResolveJourneyResponseSchema,
   VehicleListSchema,
+  VehicleSchema,
   VehicleUpgradeWorkflowSchema,
   type EReceiptWorkflow,
   type ReceiptDeliveryPreference,
@@ -378,26 +379,15 @@ export class JourneysService {
     pricePerDay: number;
   }> {
     const refdataUrl = process.env.REFDATA_URL ?? 'http://localhost:3002';
-    const res = await fetch(`${refdataUrl}/vehicles`);
+    const res = await fetch(
+      `${refdataUrl}/vehicles/${encodeURIComponent(vehicleId)}`,
+    );
 
     if (!res.ok) {
       throw await toUpstreamException(res, `refdata responded ${res.status}`);
     }
 
-    const vehicles = (await res.json()) as Array<{
-      id: string;
-      make: string;
-      model: string;
-      year: number;
-      pricePerDay: number;
-    }>;
-    const vehicle = vehicles.find((item) => item.id === vehicleId);
-
-    if (!vehicle) {
-      throw new NotFoundException({ message: 'Vehicle not found' });
-    }
-
-    return vehicle;
+    return VehicleSchema.parse(await res.json());
   }
 
   private async createVehicleUpgradeWorkflow(
