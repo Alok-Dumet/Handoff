@@ -1,6 +1,6 @@
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
-import RecentBookings from "../../components/RecentBookings";
+import ReservationList from "../../components/ReservationList";
 
 export default function ReservationsPage() {
   return (
@@ -9,14 +9,10 @@ export default function ReservationsPage() {
         Reservations
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Manage current and upcoming reservations. Detail pages and payment
-        status are next in the reservation-management buildout.
+        Manage current and upcoming reservations, review status, and continue
+        the next available reservation action.
       </Typography>
-      <RecentBookings
-        heading="Current reservations"
-        emptyMessage="No reservations yet."
-        errorMessage="Reservations could not be loaded."
-      />
+      <ReservationList />
     </Container>
   );
 }
