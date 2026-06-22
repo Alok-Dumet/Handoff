@@ -1,4 +1,3 @@
-import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
@@ -9,36 +8,21 @@ import EReceiptWorkflow from "../../../components/EReceiptWorkflow";
 import IdentityVerificationWorkflow from "../../../components/IdentityVerificationWorkflow";
 import PreCheckInWorkflow from "../../../components/PreCheckInWorkflow";
 import VehicleUpgradeWorkflow from "../../../components/VehicleUpgradeWorkflow";
+import { getAemJourneyPageContent } from "../../../lib/server-api";
 
-const journeyPages = {
-  "pre-check-in": {
-    label: "Pre-check-in",
-    heading: "Confirm trip details",
-    body: "Review driver and pickup details before arrival so the counter handoff is faster.",
-  },
-  biometric: {
-    label: "Biometric verification",
-    heading: "Verify identity",
-    body: "Complete identity verification before pickup to reduce manual checks at the branch.",
-  },
-  "e-receipt": {
-    label: "E-receipt",
-    heading: "Review receipt",
-    body: "Review rental charges, taxes, and receipt delivery preferences for this reservation.",
-  },
-  "vehicle-upgrade": {
-    label: "Vehicle upgrade",
-    heading: "Review upgrade options",
-    body: "Compare eligible vehicle upgrades and choose whether to keep or change your reservation class.",
-  },
-} satisfies Record<JourneyType, { label: string; heading: string; body: string }>;
+const journeyTypes: JourneyType[] = [
+  "pre-check-in",
+  "biometric",
+  "e-receipt",
+  "vehicle-upgrade",
+];
 
 type JourneyPageParams = {
   journey: string;
 };
 
 export function generateStaticParams() {
-  return Object.keys(journeyPages).map((journey) => ({ journey }));
+  return journeyTypes.map((journey) => ({ journey }));
 }
 
 export async function generateMetadata({
@@ -52,8 +36,10 @@ export async function generateMetadata({
     return {};
   }
 
+  const page = await getAemJourneyPageContent(journey);
+
   return {
-    title: journeyPages[journey].label,
+    title: page.label,
   };
 }
 
@@ -71,7 +57,7 @@ export default async function JourneyPage({
     notFound();
   }
 
-  const page = journeyPages[journey];
+  const page = await getAemJourneyPageContent(journey);
 
   return (
     <Container maxWidth="sm" sx={{ py: 6 }}>
@@ -83,7 +69,11 @@ export default async function JourneyPage({
           <Typography variant="h4" component="h1">
             {page.heading}
           </Typography>
-          <Typography color="text.secondary">{page.body}</Typography>
+          <Typography variant="button" color="text.secondary">
+            {page.primaryActionLabel}
+          </Typography>
+          <Typography color="text.secondary">{page.intro}</Typography>
+          <Typography>{page.body}</Typography>
           {journey === "pre-check-in" ? (
             <PreCheckInWorkflow
               reservationId={reservationId ?? "local-reservation"}
@@ -100,11 +90,7 @@ export default async function JourneyPage({
             <VehicleUpgradeWorkflow
               reservationId={reservationId ?? "local-reservation"}
             />
-          ) : (
-            <Button href="/" variant="contained">
-              Back to vehicles
-            </Button>
-          )}
+          ) : null}
         </Stack>
       </Paper>
     </Container>
@@ -112,5 +98,5 @@ export default async function JourneyPage({
 }
 
 function isJourneyType(value: string): value is JourneyType {
-  return value in journeyPages;
+  return journeyTypes.includes(value as JourneyType);
 }

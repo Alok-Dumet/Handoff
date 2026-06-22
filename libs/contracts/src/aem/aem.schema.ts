@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { JourneyTypeSchema } from '../journeys/journey.schema.js';
 
 export const AemBrandKeySchema = z.enum(['handoff', 'roadline']);
 export type AemBrandKey = z.infer<typeof AemBrandKeySchema>;
@@ -27,3 +28,22 @@ export const AemPageConfigSchema = z.object({
   pages: z.record(AemBrandKeySchema, AemPageContentSchema),
 });
 export type AemPageConfig = z.infer<typeof AemPageConfigSchema>;
+
+export const AemJourneyPageContentSchema = z.object({
+  journey: JourneyTypeSchema,
+  label: z.string().min(1),
+  heading: z.string().min(1),
+  intro: z.string().min(1),
+  body: z.string().min(1),
+  primaryActionLabel: z.string().min(1),
+});
+export type AemJourneyPageContent = z.infer<
+  typeof AemJourneyPageContentSchema
+>;
+
+export const AemJourneyPageConfigSchema = z.object({
+  source: z.literal('mock-aem'),
+  version: z.string().min(1),
+  pages: z.record(JourneyTypeSchema, AemJourneyPageContentSchema),
+});
+export type AemJourneyPageConfig = z.infer<typeof AemJourneyPageConfigSchema>;
