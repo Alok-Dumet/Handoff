@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BookingStatusSchema } from '../bookings/booking.schema.js';
+import { JourneyTargetSchema } from '../journeys/journey.schema.js';
 
 export const ReservationCapabilitySchema = z.object({
   name: z.string().min(1),
@@ -46,3 +47,14 @@ export type ReservationListItem = z.infer<
 
 export const ReservationListSchema = z.array(ReservationListItemSchema);
 export type ReservationList = z.infer<typeof ReservationListSchema>;
+
+export const ReservationDetailSchema = ReservationListItemSchema.extend({
+  createdAt: z.iso.datetime(),
+  vehicleLabel: z.string().min(1),
+  customer: z.object({
+    name: z.string().min(1),
+    email: z.email(),
+  }),
+  nextJourney: JourneyTargetSchema,
+});
+export type ReservationDetail = z.infer<typeof ReservationDetailSchema>;

@@ -2,10 +2,12 @@ import {
   BookingJourneyResponseSchema,
   BookingListSchema,
   CreateBookingSchema,
+  ReservationDetailSchema,
   ReservationListSchema,
   type Booking,
   type BookingJourneyResponse,
   type CreateBooking,
+  type ReservationDetail,
   type ReservationListItem,
 } from "@handoff/contracts";
 
@@ -60,4 +62,16 @@ export async function getReservations(): Promise<ReservationListItem[]> {
   }
 
   return ReservationListSchema.parse(await res.json());
+}
+
+export async function getReservation(id: string): Promise<ReservationDetail> {
+  const res = await fetch(
+    `${getPublicBffUrl()}/reservations/${encodeURIComponent(id)}`,
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(`Reservation failed with ${res.status}`, res.status);
+  }
+
+  return ReservationDetailSchema.parse(await res.json());
 }

@@ -1,5 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import {
+  type ReservationDetail,
   type ReservationListItem,
   type ReservationSummary,
 } from '@handoff/contracts';
@@ -17,5 +18,10 @@ export class ReservationsController {
   @Get('summary')
   getSummary(): ReservationSummary {
     return this.reservationsService.getSummary();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<ReservationDetail> {
+    return this.reservationsService.findOne(id);
   }
 }

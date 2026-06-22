@@ -107,6 +107,45 @@ describe('BookingsService', () => {
     expect(bookings).toHaveLength(1);
   });
 
+  it('finds one booking from the refdata booking list', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve([
+          {
+            id: 'booking_123',
+            vehicleId: 'veh_001',
+            customerName: 'Demo Customer',
+            customerEmail: 'demo@example.com',
+            startDate: '2026-06-21',
+            endDate: '2026-06-22',
+            status: 'pending',
+            createdAt: '2026-06-21T12:00:00.000Z',
+          },
+        ]),
+    });
+
+    const service = new BookingsService(journeysService as never);
+
+    await expect(service.findOne('booking_123')).resolves.toMatchObject({
+      id: 'booking_123',
+    });
+  });
+
+  it('throws not found when one booking is missing', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+
+    const service = new BookingsService(journeysService as never);
+
+    await expect(service.findOne('missing')).rejects.toMatchObject({
+      response: { message: 'Reservation not found' },
+      status: 404,
+    });
+  });
+
   it('preserves refdata error status', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
