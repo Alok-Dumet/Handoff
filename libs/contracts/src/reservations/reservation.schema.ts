@@ -58,3 +58,35 @@ export const ReservationDetailSchema = ReservationListItemSchema.extend({
   nextJourney: JourneyTargetSchema,
 });
 export type ReservationDetail = z.infer<typeof ReservationDetailSchema>;
+
+export const ReservationPaymentModeSchema = z.enum(['authorize', 'pay']);
+export type ReservationPaymentMode = z.infer<
+  typeof ReservationPaymentModeSchema
+>;
+
+export const CreateReservationPaymentSessionSchema = z.object({
+  reservationId: z.string().min(1),
+  mode: ReservationPaymentModeSchema.default('authorize'),
+});
+export type CreateReservationPaymentSession = z.infer<
+  typeof CreateReservationPaymentSessionSchema
+>;
+
+export const ReservationPaymentSessionSchema = z.object({
+  provider: z.literal('stripe'),
+  providerSessionId: z.string().min(1),
+  reservationId: z.string().min(1),
+  mode: ReservationPaymentModeSchema,
+  amountCents: z.number().int().positive(),
+  currency: z.literal('usd'),
+  status: z.enum([
+    'requires_payment_method',
+    'requires_confirmation',
+    'requires_capture',
+    'succeeded',
+  ]),
+  clientSecret: z.string().min(1),
+});
+export type ReservationPaymentSession = z.infer<
+  typeof ReservationPaymentSessionSchema
+>;
