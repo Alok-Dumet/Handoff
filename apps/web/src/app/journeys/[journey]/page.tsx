@@ -5,6 +5,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { notFound } from "next/navigation";
 import type { JourneyType } from "@handoff/contracts";
+import PreCheckInWorkflow from "../../../components/PreCheckInWorkflow";
 
 const journeyPages = {
   "pre-check-in": {
@@ -55,10 +56,13 @@ export async function generateMetadata({
 
 export default async function JourneyPage({
   params,
+  searchParams,
 }: {
   params: Promise<JourneyPageParams>;
+  searchParams: Promise<{ reservationId?: string }>;
 }) {
   const { journey } = await params;
+  const { reservationId } = await searchParams;
 
   if (!isJourneyType(journey)) {
     notFound();
@@ -77,9 +81,15 @@ export default async function JourneyPage({
             {page.heading}
           </Typography>
           <Typography color="text.secondary">{page.body}</Typography>
-          <Button href="/" variant="contained">
-            Back to vehicles
-          </Button>
+          {journey === "pre-check-in" ? (
+            <PreCheckInWorkflow
+              reservationId={reservationId ?? "local-reservation"}
+            />
+          ) : (
+            <Button href="/" variant="contained">
+              Back to vehicles
+            </Button>
+          )}
         </Stack>
       </Paper>
     </Container>

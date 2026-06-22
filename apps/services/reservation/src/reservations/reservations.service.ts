@@ -104,7 +104,7 @@ function toListItem(
     paymentState,
     detailHref: `/reservations/${booking.id}`,
     nextActionLabel: defaultNextJourney.ctaLabel,
-    nextActionHref: defaultNextJourney.path,
+    nextActionHref: `${defaultNextJourney.path}?reservationId=${encodeURIComponent(booking.id)}`,
   };
 }
 

@@ -1,4 +1,5 @@
 jest.mock('@handoff/contracts', () => ({
+  PaymentWebhookResultSchema: { parse: (value: unknown) => value },
   ReservationPaymentSessionSchema: { parse: (value: unknown) => value },
   VehicleListSchema: { parse: (value: unknown) => value },
 }));
@@ -114,6 +115,78 @@ describe('PaymentsService', () => {
       response: { message: 'refdata unavailable' },
       status: 503,
     });
+  });
+
+  it('marks a reservation paid from a validated local Stripe webhook', async () => {
+    const service = new PaymentsService(reservationsService as never);
+
+    const result = await service.handleStripeWebhook(
+      {
+        provider: 'stripe',
+        providerEventId: 'evt_123',
+        providerSessionId: 'pi_mock_booking_123',
+        reservationId: 'booking_123',
+        type: 'payment_intent.succeeded',
+      },
+      'local_mock',
+    );
+
+    expect(reservationsService.updatePaymentState).toHaveBeenCalledWith(
+      'booking_123',
+      {
+        paymentState: 'paid',
+        providerSessionId: 'pi_mock_booking_123',
+      },
+    );
+    expect(result).toEqual({
+      received: true,
+      reservationId: 'booking_123',
+      paymentState: 'paid',
+    });
+  });
+
+  it('marks a reservation failed from a failed payment webhook', async () => {
+    const service = new PaymentsService(reservationsService as never);
+
+    await service.handleStripeWebhook(
+      {
+        provider: 'stripe',
+        providerEventId: 'evt_124',
+        providerSessionId: 'pi_mock_booking_123',
+        reservationId: 'booking_123',
+        type: 'payment_intent.payment_failed',
+      },
+      'local_mock',
+    );
+
+    expect(reservationsService.updatePaymentState).toHaveBeenCalledWith(
+      'booking_123',
+      {
+        paymentState: 'failed',
+        providerSessionId: 'pi_mock_booking_123',
+      },
+    );
+  });
+
+  it('rejects local Stripe webhooks without the local mock signature', async () => {
+    const service = new PaymentsService(reservationsService as never);
+
+    await expect(
+      service.handleStripeWebhook(
+        {
+          provider: 'stripe',
+          providerEventId: 'evt_123',
+          providerSessionId: 'pi_mock_booking_123',
+          reservationId: 'booking_123',
+          type: 'payment_intent.succeeded',
+        },
+        undefined,
+      ),
+    ).rejects.toMatchObject({
+      status: 401,
+      response: { message: 'Missing local Stripe webhook signature' },
+    });
+    expect(reservationsService.updatePaymentState).not.toHaveBeenCalled();
   });
 });
 

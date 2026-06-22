@@ -4,6 +4,8 @@ import {
   createBooking,
   createReservationPaymentSession,
   getBookings,
+  getPreCheckInWorkflow,
+  submitPreCheckInWorkflow,
 } from "./client-api";
 
 const booking = {
@@ -128,7 +130,72 @@ describe("client API helpers", () => {
       },
     );
   });
+
+  it("loads a pre-check-in workflow from the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(preCheckInWorkflow));
+
+    await expect(getPreCheckInWorkflow("booking_123")).resolves.toEqual(
+      preCheckInWorkflow,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/pre-check-in/booking_123",
+    );
+  });
+
+  it("submits a pre-check-in workflow through the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse({ ...preCheckInWorkflow, status: "completed" }));
+
+    await expect(
+      submitPreCheckInWorkflow({
+        reservationId: "booking_123",
+        driver: preCheckInWorkflow.driver,
+        pickup: preCheckInWorkflow.pickup,
+        trip: preCheckInWorkflow.trip,
+      }),
+    ).resolves.toMatchObject({ status: "completed" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/pre-check-in",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          reservationId: "booking_123",
+          driver: preCheckInWorkflow.driver,
+          pickup: preCheckInWorkflow.pickup,
+          trip: preCheckInWorkflow.trip,
+        }),
+      },
+    );
+  });
 });
+
+const preCheckInWorkflow = {
+  type: "pre-check-in",
+  reservationId: "booking_123",
+  status: "not_started",
+  driver: {
+    fullName: "Demo Customer",
+    email: "demo@example.com",
+    phone: "555-0199",
+  },
+  pickup: {
+    locationName: "Downtown branch",
+    date: "2026-07-01",
+    time: "09:00",
+  },
+  trip: {
+    flightNumber: "HA123",
+    notes: "Arriving with two bags.",
+  },
+};
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

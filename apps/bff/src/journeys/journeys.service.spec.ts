@@ -1,4 +1,5 @@
 jest.mock('@handoff/contracts', () => ({
+  PreCheckInWorkflowSchema: { parse: (value: unknown) => value },
   ResolveJourneyResponseSchema: { parse: (value: unknown) => value },
 }));
 
@@ -112,5 +113,48 @@ describe('JourneysService', () => {
     const result = service.resolve(baseRequest);
 
     expect(result.nextJourney.type).toBe(mockAemJourneyConfig.defaultJourney);
+  });
+
+  it('returns a default pre-check-in workflow before submission', () => {
+    const service = new JourneysService(adapter);
+
+    const result = service.getPreCheckIn('booking_123');
+
+    expect(result).toMatchObject({
+      type: 'pre-check-in',
+      reservationId: 'booking_123',
+      status: 'not_started',
+      pickup: {
+        locationName: 'Downtown branch',
+        time: '09:00',
+      },
+    });
+  });
+
+  it('stores completed pre-check-in workflow state after submission', () => {
+    const service = new JourneysService(adapter);
+
+    const submitted = service.submitPreCheckIn({
+      reservationId: 'booking_123',
+      driver: {
+        fullName: 'Demo Customer',
+        email: 'demo@example.com',
+        phone: '555-0199',
+      },
+      pickup: {
+        locationName: 'Airport branch',
+        date: '2026-07-01',
+        time: '10:30',
+      },
+      trip: {
+        flightNumber: 'HA123',
+        notes: 'Arriving with two bags.',
+      },
+    });
+    const stored = service.getPreCheckIn('booking_123');
+
+    expect(submitted.status).toBe('completed');
+    expect(submitted.completedAt).toEqual(expect.any(String));
+    expect(stored).toEqual(submitted);
   });
 });

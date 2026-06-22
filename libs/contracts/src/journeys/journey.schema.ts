@@ -66,3 +66,44 @@ export const BookingJourneyResponseSchema = z.object({
 export type BookingJourneyResponse = z.infer<
   typeof BookingJourneyResponseSchema
 >;
+
+export const JourneyWorkflowStatusSchema = z.enum([
+  'not_started',
+  'in_progress',
+  'completed',
+]);
+export type JourneyWorkflowStatus = z.infer<
+  typeof JourneyWorkflowStatusSchema
+>;
+
+export const PreCheckInWorkflowSchema = z.object({
+  type: z.literal('pre-check-in'),
+  reservationId: z.string().min(1),
+  status: JourneyWorkflowStatusSchema,
+  driver: z.object({
+    fullName: z.string().min(1),
+    email: z.email(),
+    phone: z.string().min(7),
+  }),
+  pickup: z.object({
+    locationName: z.string().min(1),
+    date: z.iso.date(),
+    time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  }),
+  trip: z.object({
+    flightNumber: z.string().min(2).optional(),
+    notes: z.string().max(500).optional(),
+  }),
+  completedAt: z.iso.datetime().optional(),
+});
+export type PreCheckInWorkflow = z.infer<typeof PreCheckInWorkflowSchema>;
+
+export const SubmitPreCheckInWorkflowSchema = z.object({
+  reservationId: z.string().min(1),
+  driver: PreCheckInWorkflowSchema.shape.driver,
+  pickup: PreCheckInWorkflowSchema.shape.pickup,
+  trip: PreCheckInWorkflowSchema.shape.trip,
+});
+export type SubmitPreCheckInWorkflow = z.infer<
+  typeof SubmitPreCheckInWorkflowSchema
+>;

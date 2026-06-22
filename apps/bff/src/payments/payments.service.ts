@@ -1,9 +1,18 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
+  HttpException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import {
+  PaymentWebhookResultSchema,
   ReservationPaymentSessionSchema,
   VehicleListSchema,
   type CreateReservationPaymentSession,
+  type PaymentWebhookResult,
   type ReservationPaymentSession,
+  type ReservationPaymentState,
+  type StripeReservationPaymentWebhookEvent,
   type Vehicle,
 } from '@handoff/contracts';
 import { ReservationsService } from '../reservations/reservations.service';
@@ -53,6 +62,25 @@ export class PaymentsService {
     return session;
   }
 
+  async handleStripeWebhook(
+    event: StripeReservationPaymentWebhookEvent,
+    signature: string | undefined,
+  ): Promise<PaymentWebhookResult> {
+    this.assertValidWebhookSignature(event, signature);
+
+    const paymentState = mapStripeEventToPaymentState(event.type);
+    await this.reservationsService.updatePaymentState(event.reservationId, {
+      paymentState,
+      providerSessionId: event.providerSessionId,
+    });
+
+    return PaymentWebhookResultSchema.parse({
+      received: true,
+      reservationId: event.reservationId,
+      paymentState,
+    });
+  }
+
   private async findVehicle(vehicleId: string): Promise<Vehicle> {
     const res = await fetch(`${this.refdataUrl}/vehicles`);
 
@@ -69,6 +97,61 @@ export class PaymentsService {
 
     return vehicle;
   }
+
+  private assertValidWebhookSignature(
+    event: StripeReservationPaymentWebhookEvent,
+    signature: string | undefined,
+  ): void {
+    const secret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!secret) {
+      if (signature !== 'local_mock') {
+        throw new UnauthorizedException({
+          message: 'Missing local Stripe webhook signature',
+        });
+      }
+
+      return;
+    }
+
+    const expected = createHmac('sha256', secret)
+      .update(JSON.stringify(event))
+      .digest('hex');
+
+    if (!signature || !constantTimeEquals(signature, `sha256=${expected}`)) {
+      throw new UnauthorizedException({
+        message: 'Invalid Stripe webhook signature',
+      });
+    }
+  }
+}
+
+function mapStripeEventToPaymentState(
+  type: StripeReservationPaymentWebhookEvent['type'],
+): ReservationPaymentState {
+  if (type === 'payment_intent.amount_capturable_updated') {
+    return 'authorized';
+  }
+
+  if (type === 'payment_intent.succeeded') {
+    return 'paid';
+  }
+
+  if (type === 'charge.refunded') {
+    return 'refunded';
+  }
+
+  return 'failed';
+}
+
+function constantTimeEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  return (
+    leftBuffer.length === rightBuffer.length &&
+    timingSafeEqual(leftBuffer, rightBuffer)
+  );
 }
 
 function calculateRentalDays(startDate: string, endDate: string): number {

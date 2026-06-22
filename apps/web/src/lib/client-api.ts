@@ -3,16 +3,20 @@ import {
   BookingListSchema,
   CreateBookingSchema,
   CreateReservationPaymentSessionSchema,
+  PreCheckInWorkflowSchema,
   ReservationDetailSchema,
   ReservationListSchema,
   ReservationPaymentSessionSchema,
+  SubmitPreCheckInWorkflowSchema,
   type Booking,
   type BookingJourneyResponse,
   type CreateBooking,
   type CreateReservationPaymentSession,
+  type PreCheckInWorkflow,
   type ReservationDetail,
   type ReservationListItem,
   type ReservationPaymentSession,
+  type SubmitPreCheckInWorkflow,
 } from "@handoff/contracts";
 
 function getPublicBffUrl() {
@@ -96,4 +100,36 @@ export async function createReservationPaymentSession(
   }
 
   return ReservationPaymentSessionSchema.parse(await res.json());
+}
+
+export async function getPreCheckInWorkflow(
+  reservationId: string,
+): Promise<PreCheckInWorkflow> {
+  const res = await fetch(
+    `${getPublicBffUrl()}/journeys/pre-check-in/${encodeURIComponent(reservationId)}`,
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(`Pre-check-in failed with ${res.status}`, res.status);
+  }
+
+  return PreCheckInWorkflowSchema.parse(await res.json());
+}
+
+export async function submitPreCheckInWorkflow(
+  input: SubmitPreCheckInWorkflow,
+): Promise<PreCheckInWorkflow> {
+  const payload = SubmitPreCheckInWorkflowSchema.parse(input);
+
+  const res = await fetch(`${getPublicBffUrl()}/journeys/pre-check-in`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new BffRequestError(`Pre-check-in submit failed with ${res.status}`, res.status);
+  }
+
+  return PreCheckInWorkflowSchema.parse(await res.json());
 }

@@ -99,3 +99,28 @@ export const ReservationPaymentSessionSchema = z.object({
 export type ReservationPaymentSession = z.infer<
   typeof ReservationPaymentSessionSchema
 >;
+
+export const StripeReservationPaymentWebhookEventSchema = z.object({
+  provider: z.literal('stripe'),
+  providerEventId: z.string().min(1),
+  providerSessionId: z.string().min(1),
+  reservationId: z.string().min(1),
+  type: z.enum([
+    'payment_intent.amount_capturable_updated',
+    'payment_intent.succeeded',
+    'payment_intent.payment_failed',
+    'charge.refunded',
+  ]),
+});
+export type StripeReservationPaymentWebhookEvent = z.infer<
+  typeof StripeReservationPaymentWebhookEventSchema
+>;
+
+export const PaymentWebhookResultSchema = z.object({
+  received: z.literal(true),
+  reservationId: z.string().min(1),
+  paymentState: ReservationPaymentStateSchema,
+});
+export type PaymentWebhookResult = z.infer<
+  typeof PaymentWebhookResultSchema
+>;

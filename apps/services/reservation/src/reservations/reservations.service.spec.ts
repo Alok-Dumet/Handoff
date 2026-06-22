@@ -36,7 +36,7 @@ describe("ReservationsService", () => {
         paymentState: "not_started",
         detailHref: "/reservations/booking_123",
         nextActionLabel: "Start check-in",
-        nextActionHref: "/journeys/pre-check-in",
+        nextActionHref: "/journeys/pre-check-in?reservationId=booking_123",
       },
     ]);
   });

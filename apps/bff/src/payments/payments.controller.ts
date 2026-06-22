@@ -1,6 +1,14 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Post,
+} from '@nestjs/common';
 import {
   CreateReservationPaymentSessionSchema,
+  StripeReservationPaymentWebhookEventSchema,
+  type PaymentWebhookResult,
   type ReservationPaymentSession,
 } from '@handoff/contracts';
 import { PaymentsService } from './payments.service';
@@ -19,5 +27,18 @@ export class PaymentsController {
     }
 
     return this.paymentsService.createReservationSession(result.data);
+  }
+
+  @Post('stripe/webhook')
+  handleStripeWebhook(
+    @Body() body: unknown,
+    @Headers('stripe-signature') signature: string | undefined,
+  ): Promise<PaymentWebhookResult> {
+    const result = StripeReservationPaymentWebhookEventSchema.safeParse(body);
+    if (!result.success) {
+      throw new BadRequestException(result.error.issues);
+    }
+
+    return this.paymentsService.handleStripeWebhook(result.data, signature);
   }
 }
