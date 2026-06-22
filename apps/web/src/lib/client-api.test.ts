@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BookingRequestError, createBooking, getBookings } from "./client-api";
+import {
+  BookingRequestError,
+  createBooking,
+  createReservationPaymentSession,
+  getBookings,
+} from "./client-api";
 
 const booking = {
   vehicleId: "veh_001",
@@ -86,6 +91,42 @@ describe("client API helpers", () => {
     await expect(getBookings()).resolves.toEqual([booking]);
 
     expect(fetchMock).toHaveBeenCalledWith("http://bff.test/bookings");
+  });
+
+  it("starts a reservation payment session through the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const paymentSession = {
+      provider: "stripe",
+      providerSessionId: "pi_mock_booking_123",
+      reservationId: "booking_123",
+      mode: "authorize",
+      amountCents: 12600,
+      currency: "usd",
+      status: "requires_capture",
+      clientSecret: "pi_mock_booking_123_secret_local",
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(paymentSession));
+
+    await expect(
+      createReservationPaymentSession({
+        reservationId: "booking_123",
+        mode: "authorize",
+      }),
+    ).resolves.toEqual(paymentSession);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/payments/reservation-sessions",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          reservationId: "booking_123",
+          mode: "authorize",
+        }),
+      },
+    );
   });
 });
 

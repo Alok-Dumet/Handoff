@@ -6,6 +6,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { notFound } from "next/navigation";
+import ReservationPaymentAction from "../../../components/ReservationPaymentAction";
 import { BffRequestError, getReservation } from "../../../lib/client-api";
 
 type ReservationDetailPageParams = {
@@ -66,6 +67,13 @@ export default async function ReservationDetailPage({
               <Typography color="text.secondary">
                 {reservation.customer.email}
               </Typography>
+            </Stack>
+
+            <Divider />
+
+            <Stack spacing={1}>
+              <Typography variant="subtitle1">Payment</Typography>
+              <ReservationPaymentAction reservation={reservation} />
             </Stack>
 
             <Divider />

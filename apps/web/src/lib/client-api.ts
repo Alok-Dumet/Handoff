@@ -2,13 +2,17 @@ import {
   BookingJourneyResponseSchema,
   BookingListSchema,
   CreateBookingSchema,
+  CreateReservationPaymentSessionSchema,
   ReservationDetailSchema,
   ReservationListSchema,
+  ReservationPaymentSessionSchema,
   type Booking,
   type BookingJourneyResponse,
   type CreateBooking,
+  type CreateReservationPaymentSession,
   type ReservationDetail,
   type ReservationListItem,
+  type ReservationPaymentSession,
 } from "@handoff/contracts";
 
 function getPublicBffUrl() {
@@ -74,4 +78,22 @@ export async function getReservation(id: string): Promise<ReservationDetail> {
   }
 
   return ReservationDetailSchema.parse(await res.json());
+}
+
+export async function createReservationPaymentSession(
+  input: CreateReservationPaymentSession,
+): Promise<ReservationPaymentSession> {
+  const payload = CreateReservationPaymentSessionSchema.parse(input);
+
+  const res = await fetch(`${getPublicBffUrl()}/payments/reservation-sessions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new BffRequestError(`Payment session failed with ${res.status}`, res.status);
+  }
+
+  return ReservationPaymentSessionSchema.parse(await res.json());
 }
