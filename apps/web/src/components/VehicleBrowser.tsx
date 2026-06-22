@@ -5,7 +5,6 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { BrandConfig } from "../brands";
 import { getAemPageContent, getVehicles } from "../lib/server-api";
-import BrandSwitcher from "./BrandSwitcher";
 import RecentBookings from "./RecentBookings";
 import VehicleCard from "./VehicleCard";
 
@@ -73,13 +72,9 @@ export default async function VehicleBrowser({ brand }: { brand: BrandConfig }) 
             </Stack>
             <Stack spacing={2}>
               <Typography color="text.secondary">
-                Switch brand context without leaving the authenticated rental
-                workflow.
+                Continue from vehicle search into booking, payment
+                authorization, and post-confirmation customer journeys.
               </Typography>
-              <BrandSwitcher
-                activeBrand={brand}
-                navigation={pageContent.navigation}
-              />
             </Stack>
           </Box>
         </Paper>

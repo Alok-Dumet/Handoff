@@ -130,9 +130,7 @@ export function AccountClient({
               <Typography color="text.secondary">
                 BFF customer id: {customerProfile.id}
               </Typography>
-              <Typography color="text.secondary">
-                Preferred brand: {customerProfile.preferredBrand}
-              </Typography>
+              <Typography color="text.secondary">Platform: HandOff</Typography>
             </Stack>
 
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>

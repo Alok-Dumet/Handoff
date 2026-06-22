@@ -9,7 +9,7 @@ import {
   getReservation,
   getVehicles,
 } from "./server-api";
-import { brandConfigs } from "../brands";
+import { handoffBrand } from "../brands";
 
 vi.mock("./server-auth", () => ({
   getClerkIdentityHeaders: vi.fn(async () => ({})),
@@ -43,7 +43,7 @@ describe("server API helpers", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(pageContent));
 
-    await expect(getAemPageContent(brandConfigs.handoff)).resolves.toEqual(
+    await expect(getAemPageContent(handoffBrand)).resolves.toEqual(
       pageContent,
     );
 
@@ -162,10 +162,7 @@ const pageContent = {
   recentBookingsHeading: "Recent bookings",
   recentBookingsEmpty: "No bookings yet.",
   recentBookingsError: "Could not load bookings.",
-  navigation: [
-    { label: "HandOff", href: "/brands/handoff" },
-    { label: "Roadline", href: "/brands/roadline" },
-  ],
+  navigation: [{ label: "Vehicles", href: "/vehicles" }],
 };
 
 const journeyPageContent = {

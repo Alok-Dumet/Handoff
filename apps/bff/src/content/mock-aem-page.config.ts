@@ -12,23 +12,7 @@ const rawMockAemPageConfig = {
       recentBookingsHeading: 'Recent bookings',
       recentBookingsEmpty: 'No bookings yet.',
       recentBookingsError: 'Could not load bookings.',
-      navigation: [
-        { label: 'HandOff', href: '/brands/handoff' },
-        { label: 'Roadline', href: '/brands/roadline' },
-      ],
-    },
-    roadline: {
-      brandKey: 'roadline',
-      eyebrow: 'Roadline member reservations',
-      heading: 'Reserve your roadline',
-      intro: 'Pick a vehicle class and keep your post-booking steps moving.',
-      recentBookingsHeading: 'Recent roadline reservations',
-      recentBookingsEmpty: 'No Roadline reservations yet.',
-      recentBookingsError: 'Roadline reservations could not be loaded.',
-      navigation: [
-        { label: 'HandOff', href: '/brands/handoff' },
-        { label: 'Roadline', href: '/brands/roadline' },
-      ],
+      navigation: [{ label: 'Vehicles', href: '/vehicles' }],
     },
   },
 } as const;

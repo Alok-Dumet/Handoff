@@ -139,10 +139,7 @@ function brandToAemPageContent(brand: BrandConfig): AemPageContent {
     recentBookingsHeading: brand.copy.recentBookingsHeading,
     recentBookingsEmpty: brand.copy.recentBookingsEmpty,
     recentBookingsError: brand.copy.recentBookingsError,
-    navigation: [
-      { label: "HandOff", href: "/brands/handoff" },
-      { label: "Roadline", href: "/brands/roadline" },
-    ],
+    navigation: [{ label: "Vehicles", href: "/vehicles" }],
   };
 }
 

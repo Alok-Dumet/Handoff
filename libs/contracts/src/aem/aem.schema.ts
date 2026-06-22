@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { JourneyTypeSchema } from '../journeys/journey.schema.js';
 
-export const AemBrandKeySchema = z.enum(['handoff', 'roadline']);
+export const AemBrandKeySchema = z.enum(['handoff']);
 export type AemBrandKey = z.infer<typeof AemBrandKeySchema>;
 
 export const AemNavigationItemSchema = z.object({

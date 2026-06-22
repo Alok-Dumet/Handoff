@@ -1,3 +1,20 @@
+jest.mock('@handoff/contracts', () => ({
+  AemBrandKeySchema: {
+    safeParse: (value: unknown) =>
+      value === 'handoff' ? { success: true, data: value } : { success: false },
+  },
+  AemJourneyPageContentSchema: { parse: (value: unknown) => value },
+  AemPageContentSchema: { parse: (value: unknown) => value },
+  JourneyTypeSchema: {
+    safeParse: (value: unknown) =>
+      ['pre-check-in', 'biometric', 'e-receipt', 'vehicle-upgrade'].includes(
+        String(value),
+      )
+        ? { success: true, data: value }
+        : { success: false },
+  },
+}));
+
 import { AemJourneyPageContentAdapter } from './aem-journey-page-content.adapter';
 import { AemPageContentAdapter } from './aem-page-content.adapter';
 import { ContentService } from './content.service';
@@ -14,17 +31,7 @@ const mockAemPageConfig = {
       recentBookingsHeading: 'Recent bookings',
       recentBookingsEmpty: 'No bookings yet.',
       recentBookingsError: 'Could not load bookings.',
-      navigation: [{ label: 'HandOff', href: '/brands/handoff' }],
-    },
-    roadline: {
-      brandKey: 'roadline',
-      eyebrow: 'Roadline member reservations',
-      heading: 'Reserve your roadline',
-      intro: 'Pick a vehicle class and keep your post-booking steps moving.',
-      recentBookingsHeading: 'Recent roadline reservations',
-      recentBookingsEmpty: 'No Roadline reservations yet.',
-      recentBookingsError: 'Roadline reservations could not be loaded.',
-      navigation: [{ label: 'Roadline', href: '/brands/roadline' }],
+      navigation: [{ label: 'Vehicles', href: '/vehicles' }],
     },
   },
 } as const;
@@ -81,13 +88,13 @@ const journeyAdapter: AemJourneyPageContentAdapter = {
 };
 
 describe('ContentService', () => {
-  it('returns content for a known brand key', () => {
+  it('returns HandOff content for the known brand key', () => {
     const service = new ContentService(pageAdapter, journeyAdapter);
 
-    const result = service.getPageContent('roadline');
+    const result = service.getPageContent('handoff');
 
-    expect(result.brandKey).toBe('roadline');
-    expect(result.heading).toBe('Reserve your roadline');
+    expect(result.brandKey).toBe('handoff');
+    expect(result.heading).toBe('Available vehicles');
   });
 
   it('falls back to handoff content for an unknown brand key', () => {

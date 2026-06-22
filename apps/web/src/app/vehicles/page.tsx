@@ -4,7 +4,7 @@ import VehicleBrowser from "../../components/VehicleBrowser";
 
 export default async function VehiclesPage() {
   await requireSignedIn("/vehicles");
-  const brand = getBrandConfig(process.env.BRAND);
+  const brand = getBrandConfig();
 
   return <VehicleBrowser brand={brand} />;
 }

@@ -8,7 +8,7 @@ import { getBrandConfig } from "../brands";
 import AppShell from "../components/AppShell";
 import Providers from "../providers";
 
-const brand = getBrandConfig(process.env.BRAND);
+const brand = getBrandConfig();
 
 export const metadata: Metadata = {
   title: brand.metadata.title,
