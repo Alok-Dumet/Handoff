@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { type CurrentRental } from '@handoff/contracts';
 import { RentalsService } from './rentals.service';
 
@@ -7,7 +7,9 @@ export class RentalsController {
   constructor(private readonly rentalsService: RentalsService) {}
 
   @Get('current')
-  getCurrentRental(): CurrentRental {
-    return this.rentalsService.getCurrentRental();
+  getCurrentRental(
+    @Query('reservationId') reservationId?: string,
+  ): Promise<CurrentRental> {
+    return this.rentalsService.getCurrentRental(reservationId);
   }
 }

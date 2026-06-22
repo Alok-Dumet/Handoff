@@ -7,6 +7,7 @@ import {
   ConfirmVehicleUpgradeWorkflowSchema,
   IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
+  CurrentRentalSchema,
   ReservationDetailSchema,
   ReservationListSchema,
   ReservationPaymentSessionSchema,
@@ -20,6 +21,7 @@ import {
   type BookingJourneyResponse,
   type CreateBooking,
   type CreateReservationPaymentSession,
+  type CurrentRental,
   type EReceiptWorkflow,
   type IdentityVerificationWorkflow,
   type PreCheckInWorkflow,
@@ -97,6 +99,23 @@ export async function getReservation(id: string): Promise<ReservationDetail> {
   }
 
   return ReservationDetailSchema.parse(await res.json());
+}
+
+export async function getCurrentRental(
+  reservationId?: string,
+): Promise<CurrentRental> {
+  const url = `${getPublicBffUrl()}/rentals/current`;
+  const requestUrl = reservationId
+    ? `${url}?reservationId=${encodeURIComponent(reservationId)}`
+    : url;
+
+  const res = await fetch(requestUrl);
+
+  if (!res.ok) {
+    throw new BffRequestError(`Rental status failed with ${res.status}`, res.status);
+  }
+
+  return CurrentRentalSchema.parse(await res.json());
 }
 
 export async function createReservationPaymentSession(
