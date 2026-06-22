@@ -306,6 +306,55 @@ describe('JourneysService', () => {
     expect(result.message).toBe('Receipt ready for download.');
   });
 
+  it('preserves reservation upstream errors for e-receipt workflows', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: () => Promise.resolve({ message: 'reservation unavailable' }),
+    });
+
+    const service = new JourneysService(adapter);
+
+    await expect(service.getEReceipt('booking_123')).rejects.toMatchObject({
+      response: { message: 'reservation unavailable' },
+      status: 503,
+    });
+  });
+
+  it('preserves refdata upstream errors for e-receipt vehicle lookup', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('/reservations/booking_123')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              id: 'booking_123',
+              vehicleId: 'veh_001',
+              customerName: 'Demo Customer',
+              customerEmail: 'demo@example.com',
+              startDate: '2026-06-21',
+              endDate: '2026-06-23',
+              status: 'confirmed',
+              paymentState: 'paid',
+            }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: false,
+        status: 502,
+        json: () => Promise.resolve({ message: 'refdata unavailable' }),
+      });
+    });
+
+    const service = new JourneysService(adapter);
+
+    await expect(service.getEReceipt('booking_123')).rejects.toMatchObject({
+      response: { message: 'refdata unavailable' },
+      status: 502,
+    });
+  });
+
   it('loads vehicle upgrade options and persists the selection', async () => {
     global.fetch = jest.fn().mockImplementation((url: string) => {
       if (url.includes('/reservations/booking_123')) {
@@ -392,5 +441,91 @@ describe('JourneysService', () => {
     expect(confirmed.status).toBe('confirmed');
     expect(confirmed.selectedOffer?.vehicleId).toBe('veh_002');
     expect(confirmed.confirmedAt).toEqual(expect.any(String));
+  });
+
+  it('preserves refdata upstream errors for vehicle upgrade options', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('/reservations/booking_123')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              id: 'booking_123',
+              vehicleId: 'veh_001',
+              customerName: 'Demo Customer',
+              customerEmail: 'demo@example.com',
+              startDate: '2026-06-21',
+              endDate: '2026-06-23',
+              status: 'confirmed',
+              paymentState: 'paid',
+            }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: false,
+        status: 503,
+        json: () => Promise.resolve({ message: 'refdata unavailable' }),
+      });
+    });
+
+    const service = new JourneysService(adapter);
+
+    await expect(
+      service.getVehicleUpgrade('booking_123'),
+    ).rejects.toMatchObject({
+      response: { message: 'refdata unavailable' },
+      status: 503,
+    });
+  });
+
+  it('throws not found for missing vehicle upgrade offers', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('/reservations/booking_123')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              id: 'booking_123',
+              vehicleId: 'veh_001',
+              customerName: 'Demo Customer',
+              customerEmail: 'demo@example.com',
+              startDate: '2026-06-21',
+              endDate: '2026-06-23',
+              status: 'confirmed',
+              paymentState: 'paid',
+            }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            {
+              id: 'veh_001',
+              make: 'Toyota',
+              model: 'Corolla',
+              year: 2024,
+              class: 'compact',
+              transmission: 'automatic',
+              seats: 5,
+              pricePerDay: 42,
+            },
+          ]),
+      });
+    });
+
+    const service = new JourneysService(adapter);
+
+    await expect(
+      service.selectVehicleUpgrade({
+        reservationId: 'booking_123',
+        vehicleId: 'missing',
+      }),
+    ).rejects.toMatchObject({
+      response: { message: 'Vehicle upgrade offer not found' },
+      status: 404,
+    });
   });
 });

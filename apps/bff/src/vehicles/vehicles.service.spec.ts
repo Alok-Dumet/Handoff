@@ -46,15 +46,18 @@ describe('VehiclesService', () => {
     ]);
   });
 
-  it('throws when refdata responds with an error', async () => {
+  it('preserves refdata upstream status and body', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
-      status: 500,
+      status: 503,
       json: () => Promise.resolve({ message: 'refdata down' }),
     });
 
     const service = new VehiclesService();
 
-    await expect(service.findAll()).rejects.toThrow('refdata responded 500');
+    await expect(service.findAll()).rejects.toMatchObject({
+      response: { message: 'refdata down' },
+      status: 503,
+    });
   });
 });

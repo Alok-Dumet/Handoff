@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { type VehicleSummary, VehicleListSchema } from '@handoff/contracts';
+import { toUpstreamException } from '../upstream-exception';
 
 @Injectable()
 export class VehiclesService {
@@ -9,7 +10,7 @@ export class VehiclesService {
   async findAll(): Promise<VehicleSummary[]> {
     const res = await fetch(`${this.refdataUrl}/vehicles`);
     if (!res.ok) {
-      throw new Error(`refdata responded ${res.status}`);
+      throw await toUpstreamException(res, `refdata responded ${res.status}`);
     }
 
     // Validate the domain response at the boundary: if refdata's shape ever

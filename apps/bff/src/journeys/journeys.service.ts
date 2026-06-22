@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   EReceiptWorkflowSchema,
   IdentityVerificationWorkflowSchema,
@@ -20,6 +24,7 @@ import {
   type UpdateEReceiptDeliveryPreference,
   type VehicleUpgradeWorkflow,
 } from '@handoff/contracts';
+import { toUpstreamException } from '../upstream-exception';
 import { JourneyContentAdapter } from './content/journey-content.adapter';
 
 type ReservationSnapshot = {
@@ -203,7 +208,9 @@ export class JourneysService {
     );
 
     if (!selectedOffer) {
-      throw new Error('Vehicle upgrade offer not found');
+      throw new NotFoundException({
+        message: 'Vehicle upgrade offer not found',
+      });
     }
 
     const updated = VehicleUpgradeWorkflowSchema.parse({
@@ -225,7 +232,9 @@ export class JourneysService {
     const workflow = await this.getVehicleUpgrade(reservationId);
 
     if (!workflow.selectedOffer) {
-      throw new Error('Select an upgrade before confirming it');
+      throw new BadRequestException({
+        message: 'Select an upgrade before confirming it',
+      });
     }
 
     const confirmed = VehicleUpgradeWorkflowSchema.parse({
@@ -307,7 +316,10 @@ export class JourneysService {
     );
 
     if (!res.ok) {
-      throw new Error(`reservation service responded ${res.status}`);
+      throw await toUpstreamException(
+        res,
+        `reservation service responded ${res.status}`,
+      );
     }
 
     return (await res.json()) as ReservationSnapshot;
@@ -369,7 +381,7 @@ export class JourneysService {
     const res = await fetch(`${refdataUrl}/vehicles`);
 
     if (!res.ok) {
-      throw new Error(`refdata responded ${res.status}`);
+      throw await toUpstreamException(res, `refdata responded ${res.status}`);
     }
 
     const vehicles = (await res.json()) as Array<{
@@ -382,7 +394,7 @@ export class JourneysService {
     const vehicle = vehicles.find((item) => item.id === vehicleId);
 
     if (!vehicle) {
-      throw new Error('Vehicle not found');
+      throw new NotFoundException({ message: 'Vehicle not found' });
     }
 
     return vehicle;
@@ -398,7 +410,7 @@ export class JourneysService {
     );
 
     if (!currentVehicle) {
-      throw new Error('Current vehicle not found');
+      throw new NotFoundException({ message: 'Current vehicle not found' });
     }
 
     const offers = vehicles
@@ -453,7 +465,7 @@ export class JourneysService {
     const res = await fetch(`${refdataUrl}/vehicles`);
 
     if (!res.ok) {
-      throw new Error(`refdata responded ${res.status}`);
+      throw await toUpstreamException(res, `refdata responded ${res.status}`);
     }
 
     return VehicleListSchema.parse(await res.json());
