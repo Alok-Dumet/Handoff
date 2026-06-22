@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BookingSchema, BookingStatusSchema } from '../bookings/index.js';
+import { TransmissionSchema, VehicleClassSchema } from '../vehicles/index.js';
 
 export const JourneyTypeSchema = z.enum([
   'pre-check-in',
@@ -191,4 +192,64 @@ export const UpdateEReceiptDeliveryPreferenceSchema = z.object({
 });
 export type UpdateEReceiptDeliveryPreference = z.infer<
   typeof UpdateEReceiptDeliveryPreferenceSchema
+>;
+
+export const VehicleUpgradeOfferSchema = z.object({
+  vehicleId: z.string().min(1),
+  title: z.string().min(1),
+  class: VehicleClassSchema,
+  transmission: TransmissionSchema,
+  seats: z.number().int().positive(),
+  pricePerDay: z.number().nonnegative(),
+  priceLabel: z.string().min(1),
+  deltaPerDayCents: z.number().int(),
+  deltaLabel: z.string().min(1),
+});
+export type VehicleUpgradeOffer = z.infer<typeof VehicleUpgradeOfferSchema>;
+
+export const VehicleUpgradeWorkflowStatusSchema = z.enum([
+  'not_started',
+  'reviewing',
+  'confirmed',
+]);
+export type VehicleUpgradeWorkflowStatus = z.infer<
+  typeof VehicleUpgradeWorkflowStatusSchema
+>;
+
+export const VehicleUpgradeWorkflowSchema = z.object({
+  type: z.literal('vehicle-upgrade'),
+  reservationId: z.string().min(1),
+  status: VehicleUpgradeWorkflowStatusSchema,
+  currentVehicle: VehicleUpgradeOfferSchema,
+  offers: z.array(VehicleUpgradeOfferSchema).min(1),
+  selectedVehicleId: z.string().min(1).optional(),
+  selectedOffer: VehicleUpgradeOfferSchema.optional(),
+  updatedAt: z.iso.datetime(),
+  confirmedAt: z.iso.datetime().optional(),
+  message: z.string().min(1),
+});
+export type VehicleUpgradeWorkflow = z.infer<
+  typeof VehicleUpgradeWorkflowSchema
+>;
+
+export const StartVehicleUpgradeWorkflowSchema = z.object({
+  reservationId: z.string().min(1),
+});
+export type StartVehicleUpgradeWorkflow = z.infer<
+  typeof StartVehicleUpgradeWorkflowSchema
+>;
+
+export const SelectVehicleUpgradeWorkflowSchema = z.object({
+  reservationId: z.string().min(1),
+  vehicleId: z.string().min(1),
+});
+export type SelectVehicleUpgradeWorkflow = z.infer<
+  typeof SelectVehicleUpgradeWorkflowSchema
+>;
+
+export const ConfirmVehicleUpgradeWorkflowSchema = z.object({
+  reservationId: z.string().min(1),
+});
+export type ConfirmVehicleUpgradeWorkflow = z.infer<
+  typeof ConfirmVehicleUpgradeWorkflowSchema
 >;

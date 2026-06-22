@@ -3,6 +3,8 @@ jest.mock('@handoff/contracts', () => ({
   IdentityVerificationWorkflowSchema: { parse: (value: unknown) => value },
   PreCheckInWorkflowSchema: { parse: (value: unknown) => value },
   ResolveJourneyResponseSchema: { parse: (value: unknown) => value },
+  VehicleListSchema: { parse: (value: unknown) => value },
+  VehicleUpgradeWorkflowSchema: { parse: (value: unknown) => value },
 }));
 
 import { JourneyContentAdapter } from './content/journey-content.adapter';
@@ -58,6 +60,10 @@ const baseRequest = {
 };
 
 describe('JourneysService', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('resolves pre-check-in when check-in is eligible', () => {
     const service = new JourneysService(adapter);
 
@@ -298,5 +304,93 @@ describe('JourneysService', () => {
     expect(result.status).toBe('ready');
     expect(result.deliveryPreference).toBe('download');
     expect(result.message).toBe('Receipt ready for download.');
+  });
+
+  it('loads vehicle upgrade options and persists the selection', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('/reservations/booking_123')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              id: 'booking_123',
+              vehicleId: 'veh_001',
+              customerName: 'Demo Customer',
+              customerEmail: 'demo@example.com',
+              startDate: '2026-06-21',
+              endDate: '2026-06-23',
+              status: 'confirmed',
+              paymentState: 'paid',
+            }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            {
+              id: 'veh_001',
+              make: 'Toyota',
+              model: 'Corolla',
+              year: 2024,
+              class: 'compact',
+              transmission: 'automatic',
+              seats: 5,
+              pricePerDay: 42,
+            },
+            {
+              id: 'veh_002',
+              make: 'Toyota',
+              model: 'Camry',
+              year: 2026,
+              class: 'premium',
+              transmission: 'automatic',
+              seats: 5,
+              pricePerDay: 58,
+            },
+            {
+              id: 'veh_003',
+              make: 'Toyota',
+              model: 'Highlander',
+              year: 2026,
+              class: 'suv',
+              transmission: 'automatic',
+              seats: 7,
+              pricePerDay: 74,
+            },
+          ]),
+      });
+    });
+
+    const service = new JourneysService(adapter);
+    const initial = await service.getVehicleUpgrade('booking_123');
+
+    expect(initial.type).toBe('vehicle-upgrade');
+    expect(initial.reservationId).toBe('booking_123');
+    expect(initial.status).toBe('not_started');
+    expect(initial.currentVehicle.vehicleId).toBe('veh_001');
+    expect(initial.currentVehicle.title).toBe('2024 Toyota Corolla');
+    expect(initial.offers).toHaveLength(2);
+    expect(initial.offers[0]).toMatchObject({
+      vehicleId: 'veh_002',
+      deltaPerDayCents: 1600,
+    });
+    expect(initial.offers[1]).toMatchObject({
+      vehicleId: 'veh_003',
+      deltaPerDayCents: 3200,
+    });
+
+    const selected = await service.selectVehicleUpgrade({
+      reservationId: 'booking_123',
+      vehicleId: 'veh_002',
+    });
+    const confirmed = await service.confirmVehicleUpgrade('booking_123');
+
+    expect(selected.status).toBe('reviewing');
+    expect(selected.selectedVehicleId).toBe('veh_002');
+    expect(confirmed.status).toBe('confirmed');
+    expect(confirmed.selectedOffer?.vehicleId).toBe('veh_002');
+    expect(confirmed.confirmedAt).toEqual(expect.any(String));
   });
 });

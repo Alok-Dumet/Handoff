@@ -7,10 +7,13 @@ import {
   getIdentityVerificationWorkflow,
   getBookings,
   getPreCheckInWorkflow,
+  getVehicleUpgradeWorkflow,
   startIdentityVerificationWorkflow,
+  selectVehicleUpgradeWorkflow,
   submitPreCheckInWorkflow,
   updateEReceiptDeliveryPreference,
   updateIdentityVerificationStatus,
+  confirmVehicleUpgradeWorkflow,
 } from "./client-api";
 
 const booking = {
@@ -299,6 +302,82 @@ describe("client API helpers", () => {
       },
     );
   });
+
+  it("loads a vehicle upgrade workflow from the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(vehicleUpgradeWorkflow));
+
+    await expect(getVehicleUpgradeWorkflow("booking_123")).resolves.toEqual(
+      vehicleUpgradeWorkflow,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/vehicle-upgrade/booking_123",
+    );
+  });
+
+  it("selects a vehicle upgrade through the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const selectedWorkflow = {
+      ...vehicleUpgradeWorkflow,
+      status: "reviewing",
+      selectedVehicleId: "veh_002",
+      selectedOffer: vehicleUpgradeWorkflow.offers[1],
+      message: "Selected 2026 Toyota Camry. Review the upgrade and confirm when ready.",
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(selectedWorkflow));
+
+    await expect(
+      selectVehicleUpgradeWorkflow({
+        reservationId: "booking_123",
+        vehicleId: "veh_002",
+      }),
+    ).resolves.toEqual(selectedWorkflow);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/vehicle-upgrade/select",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          reservationId: "booking_123",
+          vehicleId: "veh_002",
+        }),
+      },
+    );
+  });
+
+  it("confirms a vehicle upgrade through the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const confirmedWorkflow = {
+      ...vehicleUpgradeWorkflow,
+      status: "confirmed",
+      selectedVehicleId: "veh_002",
+      selectedOffer: vehicleUpgradeWorkflow.offers[1],
+      confirmedAt: "2026-06-22T13:00:00.000Z",
+      message: "Upgrade confirmed for 2026 Toyota Camry.",
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(confirmedWorkflow));
+
+    await expect(confirmVehicleUpgradeWorkflow("booking_123")).resolves.toEqual(
+      confirmedWorkflow,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/vehicle-upgrade/confirm",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reservationId: "booking_123" }),
+      },
+    );
+  });
 });
 
 const preCheckInWorkflow = {
@@ -347,6 +426,49 @@ const eReceiptWorkflow = {
   updatedAt: "2026-06-22T12:00:00.000Z",
   sentAt: "2026-06-22T12:00:00.000Z",
   message: "Receipt sent to test@example.com.",
+};
+
+const vehicleUpgradeWorkflow = {
+  type: "vehicle-upgrade",
+  reservationId: "booking_123",
+  status: "not_started",
+  currentVehicle: {
+    vehicleId: "veh_001",
+    title: "2024 Toyota Corolla",
+    class: "compact",
+    transmission: "automatic",
+    seats: 5,
+    pricePerDay: 42,
+    priceLabel: "$42.00",
+    deltaPerDayCents: 0,
+    deltaLabel: "Included in current rate",
+  },
+  offers: [
+    {
+      vehicleId: "veh_002",
+      title: "2026 Toyota Camry",
+      class: "premium",
+      transmission: "automatic",
+      seats: 5,
+      pricePerDay: 58,
+      priceLabel: "$58.00",
+      deltaPerDayCents: 1600,
+      deltaLabel: "+$16.00 per day",
+    },
+    {
+      vehicleId: "veh_003",
+      title: "2026 Toyota Highlander",
+      class: "suv",
+      transmission: "automatic",
+      seats: 7,
+      pricePerDay: 74,
+      priceLabel: "$74.00",
+      deltaPerDayCents: 3200,
+      deltaLabel: "+$32.00 per day",
+    },
+  ],
+  updatedAt: "2026-06-22T12:00:00.000Z",
+  message: "Review upgrade options for reservation booking_123.",
 };
 
 function jsonResponse(body: unknown, status = 200) {

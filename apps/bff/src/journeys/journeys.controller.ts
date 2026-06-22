@@ -8,8 +8,10 @@ import {
 } from '@nestjs/common';
 import {
   IdentityVerificationWorkflowSchema,
+  ConfirmVehicleUpgradeWorkflowSchema,
   PreCheckInWorkflowSchema,
   ResolveJourneyRequestSchema,
+  SelectVehicleUpgradeWorkflowSchema,
   UpdateEReceiptDeliveryPreferenceSchema,
   StartIdentityVerificationWorkflowSchema,
   SubmitPreCheckInWorkflowSchema,
@@ -18,6 +20,7 @@ import {
   type IdentityVerificationWorkflow,
   type PreCheckInWorkflow,
   type ResolveJourneyResponse,
+  type VehicleUpgradeWorkflow,
 } from '@handoff/contracts';
 import { JourneysService } from './journeys.service';
 
@@ -109,5 +112,36 @@ export class JourneysController {
     }
 
     return this.journeysService.updateEReceiptDeliveryPreference(result.data);
+  }
+
+  @Get('vehicle-upgrade/:reservationId')
+  getVehicleUpgrade(
+    @Param('reservationId') reservationId: string,
+  ): Promise<VehicleUpgradeWorkflow> {
+    return this.journeysService.getVehicleUpgrade(reservationId);
+  }
+
+  @Post('vehicle-upgrade/select')
+  selectVehicleUpgrade(@Body() body: unknown): Promise<VehicleUpgradeWorkflow> {
+    const result = SelectVehicleUpgradeWorkflowSchema.safeParse(body);
+    if (!result.success) {
+      throw new BadRequestException(result.error.issues);
+    }
+
+    return this.journeysService.selectVehicleUpgrade(result.data);
+  }
+
+  @Post('vehicle-upgrade/confirm')
+  confirmVehicleUpgrade(
+    @Body() body: unknown,
+  ): Promise<VehicleUpgradeWorkflow> {
+    const result = ConfirmVehicleUpgradeWorkflowSchema.safeParse(body);
+    if (!result.success) {
+      throw new BadRequestException(result.error.issues);
+    }
+
+    return this.journeysService.confirmVehicleUpgrade(
+      result.data.reservationId,
+    );
   }
 }

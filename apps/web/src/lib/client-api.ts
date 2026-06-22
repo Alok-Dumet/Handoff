@@ -4,15 +4,18 @@ import {
   CreateBookingSchema,
   CreateReservationPaymentSessionSchema,
   EReceiptWorkflowSchema,
+  ConfirmVehicleUpgradeWorkflowSchema,
   IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
   ReservationDetailSchema,
   ReservationListSchema,
   ReservationPaymentSessionSchema,
+  SelectVehicleUpgradeWorkflowSchema,
   SubmitPreCheckInWorkflowSchema,
   StartIdentityVerificationWorkflowSchema,
   UpdateIdentityVerificationStatusSchema,
   UpdateEReceiptDeliveryPreferenceSchema,
+  VehicleUpgradeWorkflowSchema,
   type Booking,
   type BookingJourneyResponse,
   type CreateBooking,
@@ -23,10 +26,12 @@ import {
   type ReservationDetail,
   type ReservationListItem,
   type ReservationPaymentSession,
+  type SelectVehicleUpgradeWorkflow,
   type StartIdentityVerificationWorkflow,
   type SubmitPreCheckInWorkflow,
   type UpdateIdentityVerificationStatus,
   type UpdateEReceiptDeliveryPreference,
+  type VehicleUpgradeWorkflow,
 } from "@handoff/contracts";
 
 function getPublicBffUrl() {
@@ -245,4 +250,54 @@ export async function updateEReceiptDeliveryPreference(
   }
 
   return EReceiptWorkflowSchema.parse(await res.json());
+}
+
+export async function getVehicleUpgradeWorkflow(
+  reservationId: string,
+): Promise<VehicleUpgradeWorkflow> {
+  const res = await fetch(
+    `${getPublicBffUrl()}/journeys/vehicle-upgrade/${encodeURIComponent(reservationId)}`,
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(`Vehicle upgrade failed with ${res.status}`, res.status);
+  }
+
+  return VehicleUpgradeWorkflowSchema.parse(await res.json());
+}
+
+export async function selectVehicleUpgradeWorkflow(
+  input: SelectVehicleUpgradeWorkflow,
+): Promise<VehicleUpgradeWorkflow> {
+  const payload = SelectVehicleUpgradeWorkflowSchema.parse(input);
+
+  const res = await fetch(`${getPublicBffUrl()}/journeys/vehicle-upgrade/select`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new BffRequestError(`Vehicle upgrade select failed with ${res.status}`, res.status);
+  }
+
+  return VehicleUpgradeWorkflowSchema.parse(await res.json());
+}
+
+export async function confirmVehicleUpgradeWorkflow(
+  reservationId: string,
+): Promise<VehicleUpgradeWorkflow> {
+  const payload = ConfirmVehicleUpgradeWorkflowSchema.parse({ reservationId });
+
+  const res = await fetch(`${getPublicBffUrl()}/journeys/vehicle-upgrade/confirm`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new BffRequestError(`Vehicle upgrade confirm failed with ${res.status}`, res.status);
+  }
+
+  return VehicleUpgradeWorkflowSchema.parse(await res.json());
 }

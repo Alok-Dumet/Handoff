@@ -8,6 +8,7 @@ import type { JourneyType } from "@handoff/contracts";
 import EReceiptWorkflow from "../../../components/EReceiptWorkflow";
 import IdentityVerificationWorkflow from "../../../components/IdentityVerificationWorkflow";
 import PreCheckInWorkflow from "../../../components/PreCheckInWorkflow";
+import VehicleUpgradeWorkflow from "../../../components/VehicleUpgradeWorkflow";
 
 const journeyPages = {
   "pre-check-in": {
@@ -93,6 +94,10 @@ export default async function JourneyPage({
             />
           ) : journey === "e-receipt" ? (
             <EReceiptWorkflow
+              reservationId={reservationId ?? "local-reservation"}
+            />
+          ) : journey === "vehicle-upgrade" ? (
+            <VehicleUpgradeWorkflow
               reservationId={reservationId ?? "local-reservation"}
             />
           ) : (
