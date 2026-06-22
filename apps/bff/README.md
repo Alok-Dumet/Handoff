@@ -2,12 +2,13 @@
 
 NestJS backend-for-frontend for Handoff.
 
-The BFF owns UI-shaped API responses. It fetches domain vehicles from refdata, validates the response with `@handoff/contracts`, and returns `VehicleSummary` objects for the web app.
+The BFF owns UI-shaped API responses. It fetches domain vehicles and bookings from refdata, aggregates customer profile data from the customer service, validates responses with `@handoff/contracts`, and returns frontend-ready objects for the web app.
 
 ## Endpoints
 
 - `GET /health`
 - `GET /vehicles`
+- `GET /customers/me`
 
 ## Commands
 
@@ -28,4 +29,5 @@ pnpm --filter @handoff/bff <script>
 
 - `PORT` defaults to `3001`.
 - `REFDATA_URL` defaults to `http://localhost:3002`.
+- `CUSTOMER_SERVICE_URL` defaults to `http://localhost:3003`.
 - `WEB_ORIGIN` defaults to `http://localhost:3000`.

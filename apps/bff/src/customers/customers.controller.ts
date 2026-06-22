@@ -13,7 +13,7 @@ export class CustomersController {
     @Headers('x-handoff-display-name') displayName?: string,
     @Headers('x-handoff-email') email?: string,
     @Headers('x-handoff-internal-secret') internalSecret?: string,
-  ): CustomerProfile {
+  ): Promise<CustomerProfile> {
     if (!isTrustedInternalCaller(internalSecret)) {
       return this.customersService.getCurrentCustomer();
     }

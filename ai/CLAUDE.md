@@ -73,3 +73,4 @@ Start all of your terminal responses with "BlueBird:"
 ## Context Hygiene
 - Only read files relevant to the current task or issue
 - Read `CLAUDE.md` once at the start of a session — do not re-read it mid-session
+- Compact automatically if context is over 50%
