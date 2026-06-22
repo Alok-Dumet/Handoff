@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -12,12 +13,18 @@ export default function ReservationPaymentAction({
 }: {
   reservation: ReservationDetail;
 }) {
+  const router = useRouter();
   const mutation = useCreateReservationPaymentSession(reservation.id);
+  const authorizationStarted = Boolean(mutation.data);
 
   function handleAuthorize() {
     mutation.mutate({
       reservationId: reservation.id,
       mode: "authorize",
+    }, {
+      onSuccess: () => {
+        router.refresh();
+      },
     });
   }
 
@@ -29,11 +36,19 @@ export default function ReservationPaymentAction({
         sx={{ alignItems: { xs: "stretch", sm: "center" } }}
       >
         <Button
-          disabled={mutation.isPending || reservation.paymentState !== "not_started"}
+          disabled={
+            mutation.isPending ||
+            authorizationStarted ||
+            reservation.paymentState !== "not_started"
+          }
           onClick={handleAuthorize}
           variant="contained"
         >
-          {mutation.isPending ? "Authorizing..." : "Authorize payment"}
+          {mutation.isPending
+            ? "Authorizing..."
+            : authorizationStarted
+              ? "Payment authorized"
+              : "Authorize payment"}
         </Button>
         <Typography color="text.secondary" variant="body2">
           Payment is calculated on the server from the reservation dates and

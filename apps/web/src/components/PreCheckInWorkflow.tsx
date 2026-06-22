@@ -44,7 +44,6 @@ export default function PreCheckInWorkflow({
   reservationId: string;
 }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState(emptyForm);
   const query = useQuery({
     queryKey: journeyQueryKeys.preCheckIn(reservationId),
     queryFn: () => getPreCheckInWorkflow(reservationId),
@@ -59,35 +58,6 @@ export default function PreCheckInWorkflow({
     },
   });
 
-  function updateField(field: keyof PreCheckInFormState, value: string) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const currentForm = getDisplayForm(form, query.data);
-
-    mutation.mutate({
-      reservationId,
-      driver: {
-        fullName: currentForm.fullName,
-        email: currentForm.email,
-        phone: currentForm.phone,
-      },
-      pickup: {
-        locationName: currentForm.locationName,
-        date: currentForm.date,
-        time: currentForm.time,
-      },
-      trip: {
-        ...(currentForm.flightNumber
-          ? { flightNumber: currentForm.flightNumber }
-          : {}),
-        ...(currentForm.notes ? { notes: currentForm.notes } : {}),
-      },
-    });
-  }
-
   if (query.isLoading) {
     return <CircularProgress size={24} />;
   }
@@ -101,8 +71,63 @@ export default function PreCheckInWorkflow({
   }
 
   const workflow = mutation.data ?? query.data;
-  const isCompleted = workflow?.status === "completed";
-  const displayForm = getDisplayForm(form, query.data);
+
+  return (
+    <PreCheckInForm
+      key={query.data?.reservationId ?? reservationId}
+      initialForm={query.data ? workflowToForm(query.data) : emptyForm}
+      isCompleted={workflow?.status === "completed"}
+      isSubmitting={mutation.isPending}
+      reservationId={reservationId}
+      showSubmitError={mutation.isError}
+      onSubmit={(form) => {
+        mutation.mutate({
+          reservationId,
+          driver: {
+            fullName: form.fullName,
+            email: form.email,
+            phone: form.phone,
+          },
+          pickup: {
+            locationName: form.locationName,
+            date: form.date,
+            time: form.time,
+          },
+          trip: {
+            ...(form.flightNumber ? { flightNumber: form.flightNumber } : {}),
+            ...(form.notes ? { notes: form.notes } : {}),
+          },
+        });
+      }}
+    />
+  );
+}
+
+function PreCheckInForm({
+  initialForm,
+  isCompleted,
+  isSubmitting,
+  onSubmit,
+  reservationId,
+  showSubmitError,
+}: {
+  initialForm: PreCheckInFormState;
+  isCompleted: boolean;
+  isSubmitting: boolean;
+  onSubmit: (form: PreCheckInFormState) => void;
+  reservationId: string;
+  showSubmitError: boolean;
+}) {
+  const [form, setForm] = useState(initialForm);
+
+  function updateField(field: keyof PreCheckInFormState, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSubmit(form);
+  }
 
   return (
     <Stack component="form" spacing={2.5} onSubmit={handleSubmit}>
@@ -120,7 +145,7 @@ export default function PreCheckInWorkflow({
             label="Full name"
             onChange={(event) => updateField("fullName", event.target.value)}
             required
-            value={displayForm.fullName}
+            value={form.fullName}
           />
           <TextField
             fullWidth
@@ -128,7 +153,7 @@ export default function PreCheckInWorkflow({
             onChange={(event) => updateField("email", event.target.value)}
             required
             type="email"
-            value={displayForm.email}
+            value={form.email}
           />
         </Stack>
         <TextField
@@ -136,7 +161,7 @@ export default function PreCheckInWorkflow({
           label="Phone"
           onChange={(event) => updateField("phone", event.target.value)}
           required
-          value={displayForm.phone}
+          value={form.phone}
         />
       </Stack>
 
@@ -149,7 +174,7 @@ export default function PreCheckInWorkflow({
           label="Pickup location"
           onChange={(event) => updateField("locationName", event.target.value)}
           required
-          value={displayForm.locationName}
+          value={form.locationName}
         />
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
           <TextField
@@ -158,7 +183,7 @@ export default function PreCheckInWorkflow({
             onChange={(event) => updateField("date", event.target.value)}
             required
             type="date"
-            value={displayForm.date}
+            value={form.date}
             slotProps={{ inputLabel: { shrink: true } }}
           />
           <TextField
@@ -167,7 +192,7 @@ export default function PreCheckInWorkflow({
             onChange={(event) => updateField("time", event.target.value)}
             required
             type="time"
-            value={displayForm.time}
+            value={form.time}
             slotProps={{ inputLabel: { shrink: true } }}
           />
         </Stack>
@@ -181,7 +206,7 @@ export default function PreCheckInWorkflow({
           fullWidth
           label="Flight number"
           onChange={(event) => updateField("flightNumber", event.target.value)}
-          value={displayForm.flightNumber}
+          value={form.flightNumber}
         />
         <TextField
           fullWidth
@@ -189,31 +214,26 @@ export default function PreCheckInWorkflow({
           multiline
           onChange={(event) => updateField("notes", event.target.value)}
           rows={3}
-          value={displayForm.notes}
+          value={form.notes}
         />
       </Stack>
 
-      {mutation.isError ? (
+      {showSubmitError ? (
         <Alert severity="error">
           Pre-check-in could not be submitted. Check the fields and try again.
         </Alert>
       ) : null}
 
-      <Button disabled={mutation.isPending} type="submit" variant="contained">
-        {mutation.isPending ? "Saving..." : "Complete pre-check-in"}
+      <Button disabled={isSubmitting} type="submit" variant="contained">
+        {isSubmitting ? "Saving..." : "Complete pre-check-in"}
       </Button>
     </Stack>
   );
 }
 
-function getDisplayForm(
-  form: PreCheckInFormState,
-  workflow: PreCheckInWorkflowState | undefined,
+function workflowToForm(
+  workflow: PreCheckInWorkflowState,
 ): PreCheckInFormState {
-  if (form.fullName || !workflow) {
-    return form;
-  }
-
   return {
     fullName: workflow.driver.fullName,
     email: workflow.driver.email,

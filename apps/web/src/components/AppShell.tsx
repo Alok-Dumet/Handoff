@@ -1,3 +1,4 @@
+import { SignedIn, SignedOut } from "@clerk/nextjs";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,18 +9,15 @@ import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
 import type { BrandConfig } from "../brands";
 
-const primaryNav = [
+const publicNav = [
   { label: "Home", href: "/" },
+];
+
+const authenticatedNav = [
   { label: "Vehicles", href: "/vehicles" },
   { label: "Reservations", href: "/reservations" },
   { label: "Rental", href: "/rental" },
   { label: "Account", href: "/account" },
-];
-
-const journeyNav = [
-  { label: "Pre-check-in", href: "/journeys/pre-check-in" },
-  { label: "Receipt", href: "/journeys/e-receipt" },
-  { label: "Upgrades", href: "/journeys/vehicle-upgrade" },
 ];
 
 export default function AppShell({
@@ -53,24 +51,28 @@ export default function AppShell({
             useFlexGap
             sx={{ flex: 1, flexWrap: "wrap" }}
           >
-            {primaryNav.map((item) => (
+            {publicNav.map((item) => (
               <Button key={item.href} href={item.href} size="small">
                 {item.label}
               </Button>
             ))}
-            {journeyNav.map((item) => (
-              <Button key={item.href} href={item.href} size="small" color="secondary">
-                {item.label}
-              </Button>
-            ))}
+            <SignedIn>
+              {authenticatedNav.map((item) => (
+                <Button key={item.href} href={item.href} size="small">
+                  {item.label}
+                </Button>
+              ))}
+            </SignedIn>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <Button href="/sign-in" size="small" variant="outlined">
-              Sign in
-            </Button>
-            <Button href="/sign-up" size="small" variant="contained">
-              Register
-            </Button>
+            <SignedOut>
+              <Button href="/sign-in" size="small" variant="outlined">
+                Sign in
+              </Button>
+              <Button href="/sign-up" size="small" variant="contained">
+                Register
+              </Button>
+            </SignedOut>
           </Stack>
         </Toolbar>
       </AppBar>
