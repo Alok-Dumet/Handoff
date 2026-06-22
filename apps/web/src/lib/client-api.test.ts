@@ -3,9 +3,12 @@ import {
   BookingRequestError,
   createBooking,
   createReservationPaymentSession,
+  getIdentityVerificationWorkflow,
   getBookings,
   getPreCheckInWorkflow,
+  startIdentityVerificationWorkflow,
   submitPreCheckInWorkflow,
+  updateIdentityVerificationStatus,
 } from "./client-api";
 
 const booking = {
@@ -175,6 +178,78 @@ describe("client API helpers", () => {
       },
     );
   });
+
+  it("loads an identity verification workflow from the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(identityWorkflow));
+
+    await expect(getIdentityVerificationWorkflow("booking_123")).resolves.toEqual(
+      identityWorkflow,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/identity-verification/booking_123",
+    );
+  });
+
+  it("starts identity verification through the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const startedWorkflow = {
+      ...identityWorkflow,
+      status: "handoff_created",
+      providerReference: "idv_mock_booking_123",
+      handoffUrl: "https://identity.local/handoff/idv_mock_booking_123",
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(startedWorkflow));
+
+    await expect(
+      startIdentityVerificationWorkflow({ reservationId: "booking_123" }),
+    ).resolves.toEqual(startedWorkflow);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/identity-verification/start",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reservationId: "booking_123" }),
+      },
+    );
+  });
+
+  it("updates identity verification status through the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const verifiedWorkflow = {
+      ...identityWorkflow,
+      status: "verified",
+      providerReference: "idv_mock_booking_123",
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(verifiedWorkflow));
+
+    await expect(
+      updateIdentityVerificationStatus({
+        reservationId: "booking_123",
+        status: "verified",
+      }),
+    ).resolves.toEqual(verifiedWorkflow);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/identity-verification/status",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          reservationId: "booking_123",
+          status: "verified",
+        }),
+      },
+    );
+  });
 });
 
 const preCheckInWorkflow = {
@@ -195,6 +270,15 @@ const preCheckInWorkflow = {
     flightNumber: "HA123",
     notes: "Arriving with two bags.",
   },
+};
+
+const identityWorkflow = {
+  type: "biometric",
+  reservationId: "booking_123",
+  status: "not_started",
+  provider: "mock-identity-provider",
+  message: "Identity verification has not started.",
+  updatedAt: "2026-06-22T12:00:00.000Z",
 };
 
 function jsonResponse(body: unknown, status = 200) {

@@ -7,9 +7,13 @@ import {
   Post,
 } from '@nestjs/common';
 import {
+  IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
   ResolveJourneyRequestSchema,
+  StartIdentityVerificationWorkflowSchema,
   SubmitPreCheckInWorkflowSchema,
+  UpdateIdentityVerificationStatusSchema,
+  type IdentityVerificationWorkflow,
   type PreCheckInWorkflow,
   type ResolveJourneyResponse,
 } from '@handoff/contracts';
@@ -45,6 +49,44 @@ export class JourneysController {
 
     return PreCheckInWorkflowSchema.parse(
       this.journeysService.submitPreCheckIn(result.data),
+    );
+  }
+
+  @Get('identity-verification/:reservationId')
+  getIdentityVerification(
+    @Param('reservationId') reservationId: string,
+  ): IdentityVerificationWorkflow {
+    return this.journeysService.getIdentityVerification(reservationId);
+  }
+
+  @Post('identity-verification/start')
+  startIdentityVerification(
+    @Body() body: unknown,
+  ): IdentityVerificationWorkflow {
+    const result = StartIdentityVerificationWorkflowSchema.safeParse(body);
+    if (!result.success) {
+      throw new BadRequestException(result.error.issues);
+    }
+
+    return IdentityVerificationWorkflowSchema.parse(
+      this.journeysService.startIdentityVerification(result.data.reservationId),
+    );
+  }
+
+  @Post('identity-verification/status')
+  updateIdentityVerificationStatus(
+    @Body() body: unknown,
+  ): IdentityVerificationWorkflow {
+    const result = UpdateIdentityVerificationStatusSchema.safeParse(body);
+    if (!result.success) {
+      throw new BadRequestException(result.error.issues);
+    }
+
+    return IdentityVerificationWorkflowSchema.parse(
+      this.journeysService.updateIdentityVerificationStatus(
+        result.data.reservationId,
+        result.data.status,
+      ),
     );
   }
 }

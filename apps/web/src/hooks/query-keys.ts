@@ -10,4 +10,6 @@ export const reservationQueryKeys = {
 export const journeyQueryKeys = {
   preCheckIn: (reservationId: string) =>
     ["journeys", "pre-check-in", reservationId] as const,
+  identityVerification: (reservationId: string) =>
+    ["journeys", "identity-verification", reservationId] as const,
 };

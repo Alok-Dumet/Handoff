@@ -107,3 +107,43 @@ export const SubmitPreCheckInWorkflowSchema = z.object({
 export type SubmitPreCheckInWorkflow = z.infer<
   typeof SubmitPreCheckInWorkflowSchema
 >;
+
+export const IdentityVerificationStatusSchema = z.enum([
+  'not_started',
+  'handoff_created',
+  'pending_review',
+  'verified',
+  'failed',
+]);
+export type IdentityVerificationStatus = z.infer<
+  typeof IdentityVerificationStatusSchema
+>;
+
+export const IdentityVerificationWorkflowSchema = z.object({
+  type: z.literal('biometric'),
+  reservationId: z.string().min(1),
+  status: IdentityVerificationStatusSchema,
+  provider: z.literal('mock-identity-provider'),
+  providerReference: z.string().min(1).optional(),
+  handoffUrl: z.string().url().optional(),
+  message: z.string().min(1),
+  updatedAt: z.iso.datetime(),
+});
+export type IdentityVerificationWorkflow = z.infer<
+  typeof IdentityVerificationWorkflowSchema
+>;
+
+export const StartIdentityVerificationWorkflowSchema = z.object({
+  reservationId: z.string().min(1),
+});
+export type StartIdentityVerificationWorkflow = z.infer<
+  typeof StartIdentityVerificationWorkflowSchema
+>;
+
+export const UpdateIdentityVerificationStatusSchema = z.object({
+  reservationId: z.string().min(1),
+  status: IdentityVerificationStatusSchema.exclude(['not_started']),
+});
+export type UpdateIdentityVerificationStatus = z.infer<
+  typeof UpdateIdentityVerificationStatusSchema
+>;

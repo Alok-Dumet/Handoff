@@ -1,4 +1,5 @@
 jest.mock('@handoff/contracts', () => ({
+  IdentityVerificationWorkflowSchema: { parse: (value: unknown) => value },
   PreCheckInWorkflowSchema: { parse: (value: unknown) => value },
   ResolveJourneyResponseSchema: { parse: (value: unknown) => value },
 }));
@@ -156,5 +157,46 @@ describe('JourneysService', () => {
     expect(submitted.status).toBe('completed');
     expect(submitted.completedAt).toEqual(expect.any(String));
     expect(stored).toEqual(submitted);
+  });
+
+  it('returns a default identity verification workflow before provider handoff', () => {
+    const service = new JourneysService(adapter);
+
+    const result = service.getIdentityVerification('booking_123');
+
+    expect(result).toMatchObject({
+      type: 'biometric',
+      reservationId: 'booking_123',
+      status: 'not_started',
+      provider: 'mock-identity-provider',
+    });
+    expect(result.updatedAt).toEqual(expect.any(String));
+  });
+
+  it('creates a provider-style identity handoff', () => {
+    const service = new JourneysService(adapter);
+
+    const result = service.startIdentityVerification('booking_123');
+
+    expect(result).toMatchObject({
+      status: 'handoff_created',
+      providerReference: 'idv_mock_booking_123',
+      handoffUrl: 'https://identity.local/handoff/idv_mock_booking_123',
+    });
+  });
+
+  it('stores identity verification status updates', () => {
+    const service = new JourneysService(adapter);
+
+    service.startIdentityVerification('booking_123');
+    const updated = service.updateIdentityVerificationStatus(
+      'booking_123',
+      'verified',
+    );
+    const stored = service.getIdentityVerification('booking_123');
+
+    expect(updated.status).toBe('verified');
+    expect(updated.message).toContain('complete');
+    expect(stored).toEqual(updated);
   });
 });

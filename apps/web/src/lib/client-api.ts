@@ -3,20 +3,26 @@ import {
   BookingListSchema,
   CreateBookingSchema,
   CreateReservationPaymentSessionSchema,
+  IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
   ReservationDetailSchema,
   ReservationListSchema,
   ReservationPaymentSessionSchema,
   SubmitPreCheckInWorkflowSchema,
+  StartIdentityVerificationWorkflowSchema,
+  UpdateIdentityVerificationStatusSchema,
   type Booking,
   type BookingJourneyResponse,
   type CreateBooking,
   type CreateReservationPaymentSession,
+  type IdentityVerificationWorkflow,
   type PreCheckInWorkflow,
   type ReservationDetail,
   type ReservationListItem,
   type ReservationPaymentSession,
+  type StartIdentityVerificationWorkflow,
   type SubmitPreCheckInWorkflow,
+  type UpdateIdentityVerificationStatus,
 } from "@handoff/contracts";
 
 function getPublicBffUrl() {
@@ -132,4 +138,69 @@ export async function submitPreCheckInWorkflow(
   }
 
   return PreCheckInWorkflowSchema.parse(await res.json());
+}
+
+export async function getIdentityVerificationWorkflow(
+  reservationId: string,
+): Promise<IdentityVerificationWorkflow> {
+  const res = await fetch(
+    `${getPublicBffUrl()}/journeys/identity-verification/${encodeURIComponent(reservationId)}`,
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(
+      `Identity verification failed with ${res.status}`,
+      res.status,
+    );
+  }
+
+  return IdentityVerificationWorkflowSchema.parse(await res.json());
+}
+
+export async function startIdentityVerificationWorkflow(
+  input: StartIdentityVerificationWorkflow,
+): Promise<IdentityVerificationWorkflow> {
+  const payload = StartIdentityVerificationWorkflowSchema.parse(input);
+
+  const res = await fetch(
+    `${getPublicBffUrl()}/journeys/identity-verification/start`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(
+      `Identity verification start failed with ${res.status}`,
+      res.status,
+    );
+  }
+
+  return IdentityVerificationWorkflowSchema.parse(await res.json());
+}
+
+export async function updateIdentityVerificationStatus(
+  input: UpdateIdentityVerificationStatus,
+): Promise<IdentityVerificationWorkflow> {
+  const payload = UpdateIdentityVerificationStatusSchema.parse(input);
+
+  const res = await fetch(
+    `${getPublicBffUrl()}/journeys/identity-verification/status`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(
+      `Identity verification status failed with ${res.status}`,
+      res.status,
+    );
+  }
+
+  return IdentityVerificationWorkflowSchema.parse(await res.json());
 }

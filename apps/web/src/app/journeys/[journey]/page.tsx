@@ -5,6 +5,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { notFound } from "next/navigation";
 import type { JourneyType } from "@handoff/contracts";
+import IdentityVerificationWorkflow from "../../../components/IdentityVerificationWorkflow";
 import PreCheckInWorkflow from "../../../components/PreCheckInWorkflow";
 
 const journeyPages = {
@@ -83,6 +84,10 @@ export default async function JourneyPage({
           <Typography color="text.secondary">{page.body}</Typography>
           {journey === "pre-check-in" ? (
             <PreCheckInWorkflow
+              reservationId={reservationId ?? "local-reservation"}
+            />
+          ) : journey === "biometric" ? (
+            <IdentityVerificationWorkflow
               reservationId={reservationId ?? "local-reservation"}
             />
           ) : (
