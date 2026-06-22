@@ -11,7 +11,7 @@ export default function JourneyPrompt({
   bookingId: string;
   journey: JourneyTarget;
 }) {
-  const { href, redirectToJourney } = useJourneyRedirect(journey);
+  const { href, redirectToJourney } = useJourneyRedirect(journey, bookingId);
 
   return (
     <SharedJourneyPrompt

@@ -7,6 +7,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { BffRequestError, getCurrentRental } from "../../lib/client-api";
+import { requireSignedIn } from "../../lib/server-auth";
 
 type RentalPageParams = {
   reservationId?: string;
@@ -38,6 +39,7 @@ export default async function RentalPage({
   searchParams: Promise<RentalPageParams>;
 }) {
   const { reservationId } = await searchParams;
+  await requireSignedIn("/rental");
   const rental = await loadRental(reservationId);
 
   if ("error" in rental) {

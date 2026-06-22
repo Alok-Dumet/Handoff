@@ -1,7 +1,3 @@
-import {
-  SignInButton,
-  UserButton,
-} from "@clerk/nextjs";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -13,7 +9,8 @@ import type { ReactNode } from "react";
 import type { BrandConfig } from "../brands";
 
 const primaryNav = [
-  { label: "Vehicles", href: "/" },
+  { label: "Home", href: "/" },
+  { label: "Vehicles", href: "/vehicles" },
   { label: "Reservations", href: "/reservations" },
   { label: "Rental", href: "/rental" },
   { label: "Account", href: "/account" },
@@ -68,21 +65,12 @@ export default function AppShell({
             ))}
           </Stack>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <Button href="/brands/handoff" size="small" variant="outlined">
-              HandOff
+            <Button href="/sign-in" size="small" variant="outlined">
+              Sign in
             </Button>
-            <Button href="/brands/roadline" size="small" variant="outlined">
-              Roadline
+            <Button href="/sign-up" size="small" variant="contained">
+              Register
             </Button>
-            <Button href="/account" size="small" variant="outlined">
-              Account
-            </Button>
-            <SignInButton mode="modal">
-              <Button size="small" variant="contained">
-                Sign in
-              </Button>
-            </SignInButton>
-            <UserButton />
           </Stack>
         </Toolbar>
       </AppBar>

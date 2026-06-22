@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import BrandThemeScope from "../../../components/BrandThemeScope";
 import VehicleBrowser from "../../../components/VehicleBrowser";
 import { brandConfigs, brandIds, isBrandId } from "../../../brands";
+import { requireSignedIn } from "../../../lib/server-auth";
 
 type BrandPageParams = {
   brand: string;
@@ -43,6 +44,8 @@ export default async function BrandPage({
   }
 
   const brand = brandConfigs[brandParam];
+
+  await requireSignedIn(`/brands/${brandParam}`);
 
   return (
     <BrandThemeScope brand={brand}>

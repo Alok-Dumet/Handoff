@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import { notFound } from "next/navigation";
 import ReservationPaymentAction from "../../../components/ReservationPaymentAction";
 import { BffRequestError, getReservation } from "../../../lib/client-api";
+import { requireSignedIn } from "../../../lib/server-auth";
 
 type ReservationDetailPageParams = {
   id: string;
@@ -25,6 +26,7 @@ export default async function ReservationDetailPage({
   params: Promise<ReservationDetailPageParams>;
 }) {
   const { id } = await params;
+  await requireSignedIn(`/reservations/${id}`);
   const reservation = await loadReservation(id);
 
   return (

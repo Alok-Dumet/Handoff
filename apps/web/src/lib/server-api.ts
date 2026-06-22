@@ -10,8 +10,8 @@ import {
   type CustomerProfile,
   type VehicleSummary,
 } from "@handoff/contracts";
-import { auth, currentUser } from "@clerk/nextjs/server";
 import type { BrandConfig } from "../brands";
+import { getClerkIdentityHeaders } from "./server-auth";
 
 function getServerBffUrl() {
   return process.env.BFF_URL ?? "http://localhost:3001";
@@ -79,32 +79,6 @@ export async function getCurrentCustomer(): Promise<CustomerProfile> {
   }
 
   return CustomerProfileSchema.parse(await res.json());
-}
-
-async function getClerkIdentityHeaders(): Promise<HeadersInit> {
-  try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      return {};
-    }
-
-    const user = await currentUser();
-    const email = user?.primaryEmailAddress?.emailAddress;
-    const displayName =
-      user?.fullName ?? user?.username ?? email ?? "HandOff Customer";
-
-    const internalSecret = process.env.BFF_INTERNAL_AUTH_SECRET;
-
-    return {
-      "x-handoff-clerk-user-id": userId,
-      "x-handoff-display-name": encodeURIComponent(displayName),
-      ...(internalSecret ? { "x-handoff-internal-secret": internalSecret } : {}),
-      ...(email ? { "x-handoff-email": encodeURIComponent(email) } : {}),
-    };
-  } catch {
-    return {};
-  }
 }
 
 function brandToAemPageContent(brand: BrandConfig): AemPageContent {

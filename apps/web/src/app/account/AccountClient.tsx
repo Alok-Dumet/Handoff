@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { UserButton, useUser } from "@clerk/nextjs";
 import type { AuthSession, CustomerProfile } from "@handoff/contracts";
 import Alert from "@mui/material/Alert";
 import Avatar from "@mui/material/Avatar";
@@ -59,9 +59,12 @@ export function AccountClient({
                 journey actions across HandOff.
               </Typography>
               <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-                <SignInButton mode="modal">
-                  <Button variant="contained">Sign in</Button>
-                </SignInButton>
+                <Button href="/sign-in" variant="contained">
+                  Sign in
+                </Button>
+                <Button href="/sign-up" variant="outlined">
+                  Register
+                </Button>
                 <Button href="/reservations" variant="outlined">
                   View reservations
                 </Button>

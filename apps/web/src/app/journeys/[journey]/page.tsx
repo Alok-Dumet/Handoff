@@ -9,6 +9,7 @@ import IdentityVerificationWorkflow from "../../../components/IdentityVerificati
 import PreCheckInWorkflow from "../../../components/PreCheckInWorkflow";
 import VehicleUpgradeWorkflow from "../../../components/VehicleUpgradeWorkflow";
 import { getAemJourneyPageContent } from "../../../lib/server-api";
+import { requireSignedIn } from "../../../lib/server-auth";
 
 const journeyTypes: JourneyType[] = [
   "pre-check-in",
@@ -56,6 +57,12 @@ export default async function JourneyPage({
   if (!isJourneyType(journey)) {
     notFound();
   }
+
+  await requireSignedIn(
+    reservationId
+      ? `/journeys/${journey}?reservationId=${encodeURIComponent(reservationId)}`
+      : `/journeys/${journey}`,
+  );
 
   const page = await getAemJourneyPageContent(journey);
 
