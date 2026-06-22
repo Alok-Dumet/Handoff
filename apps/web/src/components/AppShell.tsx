@@ -7,12 +7,7 @@ import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
-import type { BrandConfig } from "../brands";
 import { getClerkRequestContext } from "../lib/server-auth";
-
-const publicNav = [
-  { label: "Home", href: "/" },
-];
 
 const authenticatedNav = [
   { label: "Vehicles", href: "/vehicles" },
@@ -22,10 +17,8 @@ const authenticatedNav = [
 ];
 
 export default async function AppShell({
-  brand,
   children,
 }: {
-  brand: BrandConfig;
   children: ReactNode;
 }) {
   const authContext = await getClerkRequestContext();
@@ -41,7 +34,7 @@ export default async function AppShell({
           borderBottom: "1px solid",
           borderColor: "divider",
           backdropFilter: "blur(18px)",
-          bgcolor: "rgba(245, 247, 244, 0.82)",
+          bgcolor: "rgba(9, 13, 18, 0.78)",
         }}
       >
         <Toolbar
@@ -54,13 +47,32 @@ export default async function AppShell({
             px: { xs: 2, sm: 3 },
           }}
         >
-          <Box sx={{ minWidth: { xs: "auto", md: 190 } }}>
+          <Box
+            component="a"
+            href={isSignedIn ? "/vehicles" : "/"}
+            aria-label={isSignedIn ? "HandOff vehicles" : "HandOff home"}
+            sx={{
+              minWidth: { xs: "auto", md: 190 },
+              color: "text.primary",
+              textDecoration: "none",
+              transition: "transform 180ms ease, color 180ms ease",
+              "&:hover": {
+                color: "primary.main",
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
             <Typography
               variant="h6"
               component="p"
-              sx={{ lineHeight: 1, letterSpacing: "-0.04em" }}
+              sx={{
+                lineHeight: 0.92,
+                fontWeight: 900,
+                letterSpacing: "-0.06em",
+                fontSize: { xs: "1.35rem", md: "1.6rem" },
+              }}
             >
-              {brand.shortName}
+              HandOff
             </Typography>
             <Typography
               variant="caption"
@@ -87,11 +99,6 @@ export default async function AppShell({
               overflow: "hidden",
             }}
           >
-            {publicNav.map((item) => (
-              <Button key={item.href} href={item.href} size="small" color="inherit">
-                {item.label}
-              </Button>
-            ))}
             {isSignedIn
               ? authenticatedNav.map((item) => (
                   <Button

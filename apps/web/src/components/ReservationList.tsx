@@ -54,7 +54,7 @@ export default function ReservationList() {
           sx={{
             p: { xs: 2, sm: 2.5 },
             borderRadius: 4,
-            bgcolor: "rgba(255,255,255,0.78)",
+            bgcolor: "rgba(16,24,33,0.78)",
           }}
         >
           <Stack

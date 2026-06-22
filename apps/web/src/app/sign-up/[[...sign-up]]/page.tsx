@@ -22,11 +22,7 @@ export default async function SignUpPage({
             HandOff
           </Typography>
           <Typography variant="h3" component="h1">
-            Create an account to manage reservations and rentals.
-          </Typography>
-          <Typography color="text.secondary">
-            Use a single profile for vehicle reservations, payment, and
-            post-booking actions.
+            Create an account to start your journey.
           </Typography>
         </Stack>
         <SignUp

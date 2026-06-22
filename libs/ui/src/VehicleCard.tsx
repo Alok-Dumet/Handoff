@@ -28,9 +28,18 @@ export function VehicleCard({ vehicle, actions }: VehicleCardProps) {
     >
       <Box
         sx={{
+          position: "relative",
           height: 148,
+          overflow: "hidden",
           background:
-            "radial-gradient(circle at 78% 22%, rgba(255,255,255,0.78), transparent 7rem), linear-gradient(135deg, rgba(21,101,192,0.92), rgba(0,137,123,0.72))",
+            "radial-gradient(circle at 78% 22%, rgba(255,255,255,0.46), transparent 7rem), linear-gradient(135deg, rgba(143,215,255,0.92), rgba(125,220,199,0.72))",
+          "&::after": {
+            content: '""',
+            position: "absolute",
+            inset: "-30%",
+            background:
+              "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.42), transparent 8rem)",
+          },
         }}
       />
       <CardContent sx={{ p: { xs: 2.25, sm: 2.75 } }}>

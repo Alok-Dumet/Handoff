@@ -8,7 +8,6 @@ import EReceiptWorkflow from "../../../components/EReceiptWorkflow";
 import IdentityVerificationWorkflow from "../../../components/IdentityVerificationWorkflow";
 import PreCheckInWorkflow from "../../../components/PreCheckInWorkflow";
 import VehicleUpgradeWorkflow from "../../../components/VehicleUpgradeWorkflow";
-import { getAemJourneyPageContent } from "../../../lib/server-api";
 import { requireSignedIn } from "../../../lib/server-auth";
 
 const journeyTypes: JourneyType[] = [
@@ -17,6 +16,50 @@ const journeyTypes: JourneyType[] = [
   "e-receipt",
   "vehicle-upgrade",
 ];
+
+const journeyPageContent = {
+  "pre-check-in": {
+    label: "Pre-check-in",
+    heading: "Confirm trip details",
+    intro:
+      "Review driver and pickup details before arrival so the counter handoff is faster.",
+    body: "Verify the reservation details, update contact information, and make sure the pickup plan is correct before you arrive.",
+    primaryActionLabel: "Complete pre-check-in",
+  },
+  biometric: {
+    label: "Biometric verification",
+    heading: "Verify identity",
+    intro:
+      "Complete identity verification before pickup to reduce manual checks at the branch.",
+    body: "Use the provider handoff to finish identity verification, then return here to review the current state.",
+    primaryActionLabel: "Start provider handoff",
+  },
+  "e-receipt": {
+    label: "E-receipt",
+    heading: "Review receipt",
+    intro:
+      "Review rental charges, taxes, and receipt delivery preferences for this reservation.",
+    body: "The receipt reflects the current reservation pricing and can be sent by email or marked for download.",
+    primaryActionLabel: "Update delivery preference",
+  },
+  "vehicle-upgrade": {
+    label: "Vehicle upgrade",
+    heading: "Review upgrade options",
+    intro:
+      "Compare eligible vehicle upgrades and choose whether to keep or change your reservation class.",
+    body: "Select a higher-tier vehicle option to review the upgrade and confirm the new reservation class.",
+    primaryActionLabel: "Choose upgrade",
+  },
+} satisfies Record<
+  JourneyType,
+  {
+    label: string;
+    heading: string;
+    intro: string;
+    body: string;
+    primaryActionLabel: string;
+  }
+>;
 
 type JourneyPageParams = {
   journey: string;
@@ -37,7 +80,7 @@ export async function generateMetadata({
     return {};
   }
 
-  const page = await getAemJourneyPageContent(journey);
+  const page = journeyPageContent[journey];
 
   return {
     title: page.label,
@@ -64,7 +107,7 @@ export default async function JourneyPage({
       : `/journeys/${journey}`,
   );
 
-  const page = await getAemJourneyPageContent(journey);
+  const page = journeyPageContent[journey];
 
   return (
     <Container maxWidth="sm" sx={{ py: 6 }}>

@@ -19,13 +19,12 @@ export const JourneyTargetSchema = z.object({
 });
 export type JourneyTarget = z.infer<typeof JourneyTargetSchema>;
 
-export const AemJourneyConfigSchema = z.object({
-  source: z.literal('mock-aem'),
+export const JourneyConfigSchema = z.object({
   version: z.string().min(1),
   defaultJourney: JourneyTypeSchema,
   journeys: z.record(JourneyTypeSchema, JourneyTargetSchema),
 });
-export type AemJourneyConfig = z.infer<typeof AemJourneyConfigSchema>;
+export type JourneyConfig = z.infer<typeof JourneyConfigSchema>;
 
 export const ResolveJourneyRequestSchema = z.object({
   bookingId: z.string().min(1),

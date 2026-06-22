@@ -1,15 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getClerkIdentityHeaders } from "./server-auth";
 import {
-  getAemJourneyPageContent,
-  getAemPageContent,
   getAuthSession,
   getCurrentCustomer,
   getCurrentRental,
   getReservation,
   getVehicles,
 } from "./server-api";
-import { handoffBrand } from "../brands";
 
 vi.mock("./server-auth", () => ({
   getClerkIdentityHeaders: vi.fn(async () => ({})),
@@ -35,48 +32,6 @@ describe("server API helpers", () => {
         tags: ["vehicles"],
       },
     });
-  });
-
-  it("loads brand page content with AEM content revalidation", async () => {
-    vi.stubEnv("BFF_URL", "http://bff.test");
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(jsonResponse(pageContent));
-
-    await expect(getAemPageContent(handoffBrand)).resolves.toEqual(
-      pageContent,
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://bff.test/content/pages/handoff",
-      {
-        next: {
-          revalidate: 60,
-          tags: ["aem-content", "aem-page-handoff"],
-        },
-      },
-    );
-  });
-
-  it("loads journey page content from the BFF", async () => {
-    vi.stubEnv("BFF_URL", "http://bff.test");
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(jsonResponse(journeyPageContent));
-
-    await expect(getAemJourneyPageContent("vehicle-upgrade")).resolves.toEqual(
-      journeyPageContent,
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://bff.test/content/journeys/vehicle-upgrade",
-      {
-        next: {
-          revalidate: 60,
-          tags: ["aem-content", "aem-journey-vehicle-upgrade"],
-        },
-      },
-    );
   });
 
   it("keeps auth session reads uncached", async () => {
@@ -152,28 +107,6 @@ const vehicleSummary = {
   seats: 5,
   pricePerDay: 58,
   priceLabel: "$58/day",
-};
-
-const pageContent = {
-  brandKey: "handoff",
-  eyebrow: "Customer rental portal",
-  heading: "Available vehicles",
-  intro: "Choose a vehicle and reserve it for your next trip.",
-  recentBookingsHeading: "Recent bookings",
-  recentBookingsEmpty: "No bookings yet.",
-  recentBookingsError: "Could not load bookings.",
-  navigation: [{ label: "Vehicles", href: "/vehicles" }],
-};
-
-const journeyPageContent = {
-  journey: "vehicle-upgrade",
-  label: "Vehicle upgrade",
-  heading: "Review upgrade options",
-  intro:
-    "Compare eligible vehicle upgrades and choose whether to keep or change your reservation class.",
-  body:
-    "Select a higher-tier vehicle option to review the upgrade and confirm the new reservation class.",
-  primaryActionLabel: "Choose upgrade",
 };
 
 const authSession = {

@@ -1,7 +1,6 @@
-import { AemJourneyConfigSchema } from '@handoff/contracts';
+import { JourneyConfigSchema } from '@handoff/contracts';
 
-const rawMockAemJourneyConfig = {
-  source: 'mock-aem',
+const rawJourneyConfig = {
   version: '2026-06-21',
   defaultJourney: 'pre-check-in',
   journeys: {
@@ -36,6 +35,4 @@ const rawMockAemJourneyConfig = {
   },
 } as const;
 
-export const mockAemJourneyConfig = AemJourneyConfigSchema.parse(
-  rawMockAemJourneyConfig,
-);
+export const journeyConfig = JourneyConfigSchema.parse(rawJourneyConfig);

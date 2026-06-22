@@ -28,7 +28,7 @@ export default function RecentBookings({
       sx={{
         p: { xs: 2.5, md: 3 },
         borderRadius: 5,
-        bgcolor: "rgba(255,255,255,0.78)",
+        bgcolor: "rgba(16,24,33,0.78)",
       }}
     >
       <Stack spacing={2}>
@@ -56,7 +56,11 @@ export default function RecentBookings({
             <Paper
               key={booking.id}
               variant="outlined"
-              sx={{ p: 1.5, borderRadius: 3, bgcolor: "rgba(255,255,255,0.7)" }}
+              sx={{
+                p: 1.5,
+                borderRadius: 3,
+                bgcolor: "rgba(244,247,243,0.055)",
+              }}
             >
               <Stack spacing={1}>
                 <Stack

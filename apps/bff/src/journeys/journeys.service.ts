@@ -26,7 +26,7 @@ import {
   type VehicleUpgradeWorkflow,
 } from '@handoff/contracts';
 import { toUpstreamException } from '../upstream-exception';
-import { JourneyContentAdapter } from './content/journey-content.adapter';
+import { journeyConfig } from './journey.config';
 
 type ReservationSnapshot = {
   id: string;
@@ -52,12 +52,12 @@ export class JourneysService {
     VehicleUpgradeWorkflow
   >();
 
-  constructor(private readonly contentAdapter: JourneyContentAdapter) {}
-
   resolve(input: ResolveJourneyRequest): ResolveJourneyResponse {
-    const config = this.contentAdapter.getJourneyConfig();
-    const journeyType = this.selectJourneyType(input, config.defaultJourney);
-    const nextJourney = config.journeys[journeyType];
+    const journeyType = this.selectJourneyType(
+      input,
+      journeyConfig.defaultJourney,
+    );
+    const nextJourney = journeyConfig.journeys[journeyType];
     const alternatives = this.getAlternatives(nextJourney.type);
 
     return ResolveJourneyResponseSchema.parse({
@@ -274,9 +274,7 @@ export class JourneysService {
   }
 
   private getAlternatives(selectedType: JourneyType): JourneyTarget[] {
-    const config = this.contentAdapter.getJourneyConfig();
-
-    return Object.values(config.journeys).filter(
+    return Object.values(journeyConfig.journeys).filter(
       (journey) => journey.type !== selectedType,
     );
   }

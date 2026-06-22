@@ -24,10 +24,6 @@ export default async function SignInPage({
           <Typography variant="h3" component="h1">
             Sign in to continue your rental journey.
           </Typography>
-          <Typography color="text.secondary">
-            Access vehicles, reservations, payments, and post-booking workflows
-            from one account.
-          </Typography>
         </Stack>
         <SignIn
           routing="path"

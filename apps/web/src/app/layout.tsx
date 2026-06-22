@@ -4,15 +4,13 @@ import "@fontsource/roboto/500.css";
 import "@fontsource/roboto/700.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
-import { getBrandConfig } from "../brands";
 import AppShell from "../components/AppShell";
 import Providers from "../providers";
 
-const brand = getBrandConfig();
-
 export const metadata: Metadata = {
-  title: brand.metadata.title,
-  description: brand.metadata.description,
+  title: "HandOff",
+  description:
+    "Car rental platform for vehicle search, booking, and post-confirmation customer journeys",
 };
 
 export default function RootLayout({
@@ -25,8 +23,8 @@ export default function RootLayout({
       <html lang="en">
         <body>
           <AppRouterCacheProvider>
-            <Providers brand={brand}>
-              <AppShell brand={brand}>{children}</AppShell>
+            <Providers>
+              <AppShell>{children}</AppShell>
             </Providers>
           </AppRouterCacheProvider>
         </body>

@@ -1,6 +1,7 @@
 jest.mock('@handoff/contracts', () => ({
   EReceiptWorkflowSchema: { parse: (value: unknown) => value },
   IdentityVerificationWorkflowSchema: { parse: (value: unknown) => value },
+  JourneyConfigSchema: { parse: (value: unknown) => value },
   PreCheckInWorkflowSchema: { parse: (value: unknown) => value },
   ResolveJourneyResponseSchema: { parse: (value: unknown) => value },
   VehicleListSchema: { parse: (value: unknown) => value },
@@ -8,44 +9,7 @@ jest.mock('@handoff/contracts', () => ({
   VehicleUpgradeWorkflowSchema: { parse: (value: unknown) => value },
 }));
 
-import { JourneyContentAdapter } from './content/journey-content.adapter';
 import { JourneysService } from './journeys.service';
-
-const mockAemJourneyConfig = {
-  source: 'mock-aem',
-  version: '2026-06-21',
-  defaultJourney: 'pre-check-in',
-  journeys: {
-    'pre-check-in': {
-      type: 'pre-check-in',
-      label: 'Pre-check-in',
-      path: '/journeys/pre-check-in',
-      ctaLabel: 'Start check-in',
-    },
-    biometric: {
-      type: 'biometric',
-      label: 'Biometric verification',
-      path: '/journeys/biometric',
-      ctaLabel: 'Verify identity',
-    },
-    'e-receipt': {
-      type: 'e-receipt',
-      label: 'E-receipt',
-      path: '/journeys/e-receipt',
-      ctaLabel: 'View receipt',
-    },
-    'vehicle-upgrade': {
-      type: 'vehicle-upgrade',
-      label: 'Vehicle upgrade',
-      path: '/journeys/vehicle-upgrade',
-      ctaLabel: 'View upgrades',
-    },
-  },
-} as const;
-
-const adapter: JourneyContentAdapter = {
-  getJourneyConfig: () => mockAemJourneyConfig,
-};
 
 const baseRequest = {
   bookingId: 'booking_123',
@@ -66,7 +30,7 @@ describe('JourneysService', () => {
   });
 
   it('resolves pre-check-in when check-in is eligible', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.resolve({
       ...baseRequest,
@@ -78,7 +42,7 @@ describe('JourneysService', () => {
   });
 
   it('resolves biometric before upgrade and check-in', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.resolve({
       ...baseRequest,
@@ -94,7 +58,7 @@ describe('JourneysService', () => {
   });
 
   it('resolves vehicle upgrade when upgrade is the highest eligible signal', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.resolve({
       ...baseRequest,
@@ -105,7 +69,7 @@ describe('JourneysService', () => {
   });
 
   it('resolves e-receipt for non-pending bookings when a receipt is available', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.resolve({
       ...baseRequest,
@@ -117,15 +81,15 @@ describe('JourneysService', () => {
   });
 
   it('falls back to the configured default journey', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.resolve(baseRequest);
 
-    expect(result.nextJourney.type).toBe(mockAemJourneyConfig.defaultJourney);
+    expect(result.nextJourney.type).toBe('pre-check-in');
   });
 
   it('returns a default pre-check-in workflow before submission', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.getPreCheckIn('booking_123');
 
@@ -141,7 +105,7 @@ describe('JourneysService', () => {
   });
 
   it('stores completed pre-check-in workflow state after submission', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const submitted = service.submitPreCheckIn({
       reservationId: 'booking_123',
@@ -168,7 +132,7 @@ describe('JourneysService', () => {
   });
 
   it('returns a default identity verification workflow before provider handoff', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.getIdentityVerification('booking_123');
 
@@ -182,7 +146,7 @@ describe('JourneysService', () => {
   });
 
   it('creates a provider-style identity handoff', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     const result = service.startIdentityVerification('booking_123');
 
@@ -194,7 +158,7 @@ describe('JourneysService', () => {
   });
 
   it('stores identity verification status updates', () => {
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     service.startIdentityVerification('booking_123');
     const updated = service.updateIdentityVerificationStatus(
@@ -240,7 +204,7 @@ describe('JourneysService', () => {
       });
     });
 
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
     const result = await service.getEReceipt('booking_123');
 
     expect(result).toMatchObject({
@@ -295,7 +259,7 @@ describe('JourneysService', () => {
       });
     });
 
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
     const result = await service.updateEReceiptDeliveryPreference({
       reservationId: 'booking_123',
       deliveryPreference: 'download',
@@ -313,7 +277,7 @@ describe('JourneysService', () => {
       json: () => Promise.resolve({ message: 'reservation unavailable' }),
     });
 
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     await expect(service.getEReceipt('booking_123')).rejects.toMatchObject({
       response: { message: 'reservation unavailable' },
@@ -347,7 +311,7 @@ describe('JourneysService', () => {
       });
     });
 
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     await expect(service.getEReceipt('booking_123')).rejects.toMatchObject({
       response: { message: 'refdata unavailable' },
@@ -412,7 +376,7 @@ describe('JourneysService', () => {
       });
     });
 
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
     const initial = await service.getVehicleUpgrade('booking_123');
 
     expect(initial.type).toBe('vehicle-upgrade');
@@ -469,7 +433,7 @@ describe('JourneysService', () => {
       });
     });
 
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     await expect(
       service.getVehicleUpgrade('booking_123'),
@@ -516,7 +480,7 @@ describe('JourneysService', () => {
       });
     });
 
-    const service = new JourneysService(adapter);
+    const service = new JourneysService();
 
     await expect(
       service.selectVehicleUpgrade({
