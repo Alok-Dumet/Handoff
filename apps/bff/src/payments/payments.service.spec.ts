@@ -34,12 +34,17 @@ describe('PaymentsService', () => {
       },
       createdAt: '2026-06-21T12:00:00.000Z',
     }),
+    updatePaymentState: jest.fn().mockResolvedValue({
+      id: 'booking_123',
+      paymentState: 'authorized',
+    }),
   };
 
   afterEach(() => {
     global.fetch = originalFetch;
     jest.restoreAllMocks();
     reservationsService.findOne.mockClear();
+    reservationsService.updatePaymentState.mockClear();
   });
 
   it('creates a Stripe-compatible local authorization session for a reservation', async () => {
@@ -55,6 +60,13 @@ describe('PaymentsService', () => {
     });
 
     expect(reservationsService.findOne).toHaveBeenCalledWith('booking_123');
+    expect(reservationsService.updatePaymentState).toHaveBeenCalledWith(
+      'booking_123',
+      {
+        paymentState: 'authorized',
+        providerSessionId: 'pi_mock_booking_123',
+      },
+    );
     expect(global.fetch).toHaveBeenCalledWith('http://localhost:3002/vehicles');
     expect(result).toEqual({
       provider: 'stripe',
@@ -82,6 +94,7 @@ describe('PaymentsService', () => {
 
     expect(result.status).toBe('requires_payment_method');
     expect(result.amountCents).toBe(12600);
+    expect(reservationsService.updatePaymentState).not.toHaveBeenCalled();
   });
 
   it('preserves upstream refdata status while loading vehicle prices', async () => {

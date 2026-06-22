@@ -63,6 +63,23 @@ describe("ReservationsService", () => {
     });
   });
 
+  it("models updated payment state in reservation detail and list responses", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([bookingFixture]),
+    });
+    const service = new ReservationsService();
+
+    const updated = await service.updatePaymentState("booking_123", {
+      paymentState: "authorized",
+      providerSessionId: "pi_mock_booking_123",
+    });
+    const list = await service.findAll();
+
+    expect(updated.paymentState).toBe("authorized");
+    expect(list[0]?.paymentState).toBe("authorized");
+  });
+
   it("preserves refdata upstream status codes", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

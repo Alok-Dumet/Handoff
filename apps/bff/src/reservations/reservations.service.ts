@@ -5,6 +5,7 @@ import {
   ReservationSummarySchema,
   type ReservationDetail,
   type ReservationListItem,
+  type UpdateReservationPaymentState,
   type ReservationSummary,
 } from '@handoff/contracts';
 
@@ -26,6 +27,26 @@ export class ReservationsService {
   async findOne(id: string): Promise<ReservationDetail> {
     const res = await fetch(
       `${this.reservationServiceUrl}/reservations/${encodeURIComponent(id)}`,
+    );
+
+    if (!res.ok) {
+      throw await toUpstreamException(res);
+    }
+
+    return ReservationDetailSchema.parse(await res.json());
+  }
+
+  async updatePaymentState(
+    id: string,
+    input: UpdateReservationPaymentState,
+  ): Promise<ReservationDetail> {
+    const res = await fetch(
+      `${this.reservationServiceUrl}/reservations/${encodeURIComponent(id)}/payment-state`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      },
     );
 
     if (!res.ok) {

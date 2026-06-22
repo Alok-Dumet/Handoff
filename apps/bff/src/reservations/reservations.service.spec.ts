@@ -58,6 +58,52 @@ describe('ReservationsService', () => {
     });
   });
 
+  it('updates reservation payment state through the reservation service', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          ...reservationDetail,
+          paymentState: 'authorized',
+        }),
+    });
+    const service = new ReservationsService();
+
+    const result = await service.updatePaymentState('booking_123', {
+      paymentState: 'authorized',
+      providerSessionId: 'pi_mock_booking_123',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3004/reservations/booking_123/payment-state',
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          paymentState: 'authorized',
+          providerSessionId: 'pi_mock_booking_123',
+        }),
+      },
+    );
+    expect(result.paymentState).toBe('authorized');
+  });
+
+  it('preserves payment state update errors from the reservation service', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ message: 'Reservation not found' }),
+    });
+    const service = new ReservationsService();
+
+    await expect(
+      service.updatePaymentState('missing', { paymentState: 'authorized' }),
+    ).rejects.toMatchObject({
+      response: { message: 'Reservation not found' },
+      status: 404,
+    });
+  });
+
   it('returns reservation domain capabilities without duplicating booking logic', () => {
     const service = new ReservationsService();
 

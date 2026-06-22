@@ -26,20 +26,31 @@ export class PaymentsService {
       calculateRentalDays(reservation.startDate, reservation.endDate) *
       vehicle.pricePerDay *
       100;
+    const providerSessionId = `pi_mock_${reservation.id}`;
+    const status =
+      input.mode === 'authorize'
+        ? 'requires_capture'
+        : 'requires_payment_method';
 
-    return ReservationPaymentSessionSchema.parse({
+    const session = ReservationPaymentSessionSchema.parse({
       provider: 'stripe',
-      providerSessionId: `pi_mock_${reservation.id}`,
+      providerSessionId,
       reservationId: reservation.id,
       mode: input.mode,
       amountCents,
       currency: 'usd',
-      status:
-        input.mode === 'authorize'
-          ? 'requires_capture'
-          : 'requires_payment_method',
+      status,
       clientSecret: `pi_mock_${reservation.id}_secret_local`,
     });
+
+    if (session.mode === 'authorize') {
+      await this.reservationsService.updatePaymentState(reservation.id, {
+        paymentState: 'authorized',
+        providerSessionId,
+      });
+    }
+
+    return session;
   }
 
   private async findVehicle(vehicleId: string): Promise<Vehicle> {

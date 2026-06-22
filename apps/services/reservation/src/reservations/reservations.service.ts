@@ -6,17 +6,24 @@ import {
   type Booking,
   type ReservationDetail,
   type ReservationListItem,
+  type ReservationPaymentState,
+  type UpdateReservationPaymentState,
 } from "@handoff/contracts";
 
 @Injectable()
 export class ReservationsService {
   private readonly refdataUrl =
     process.env.REFDATA_URL ?? "http://localhost:3002";
+  private readonly paymentStates = new Map<string, ReservationPaymentState>();
 
   async findAll(): Promise<ReservationListItem[]> {
     const bookings = await this.getBookings();
 
-    return ReservationListSchema.parse(bookings.map(toListItem));
+    return ReservationListSchema.parse(
+      bookings.map((booking) =>
+        toListItem(booking, this.getPaymentState(booking.id)),
+      ),
+    );
   }
 
   async findOne(id: string): Promise<ReservationDetail> {
@@ -28,7 +35,7 @@ export class ReservationsService {
     }
 
     return ReservationDetailSchema.parse({
-      ...toListItem(booking),
+      ...toListItem(booking, this.getPaymentState(booking.id)),
       vehicleLabel: booking.vehicleId,
       customer: {
         name: booking.customerName,
@@ -39,6 +46,16 @@ export class ReservationsService {
     });
   }
 
+  async updatePaymentState(
+    id: string,
+    input: UpdateReservationPaymentState,
+  ): Promise<ReservationDetail> {
+    await this.assertReservationExists(id);
+    this.paymentStates.set(id, input.paymentState);
+
+    return this.findOne(id);
+  }
+
   private async getBookings(): Promise<Booking[]> {
     const res = await fetch(`${this.refdataUrl}/bookings`);
 
@@ -47,6 +64,19 @@ export class ReservationsService {
     }
 
     return BookingListSchema.parse(await res.json());
+  }
+
+  private async assertReservationExists(id: string): Promise<void> {
+    const bookings = await this.getBookings();
+    const booking = bookings.find((item) => item.id === id);
+
+    if (!booking) {
+      throw new NotFoundException({ message: "Reservation not found" });
+    }
+  }
+
+  private getPaymentState(id: string): ReservationPaymentState {
+    return this.paymentStates.get(id) ?? "not_started";
   }
 }
 
@@ -59,7 +89,10 @@ const defaultNextJourney = {
     "Confirm driver, contact, and pickup details before arriving at the branch.",
 } as const;
 
-function toListItem(booking: Booking): ReservationListItem {
+function toListItem(
+  booking: Booking,
+  paymentState: ReservationPaymentState,
+): ReservationListItem {
   return {
     id: booking.id,
     vehicleId: booking.vehicleId,
@@ -68,7 +101,7 @@ function toListItem(booking: Booking): ReservationListItem {
     startDate: booking.startDate,
     endDate: booking.endDate,
     status: booking.status,
-    paymentState: "not_started",
+    paymentState,
     detailHref: `/reservations/${booking.id}`,
     nextActionLabel: defaultNextJourney.ctaLabel,
     nextActionHref: defaultNextJourney.path,

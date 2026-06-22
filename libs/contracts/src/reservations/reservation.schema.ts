@@ -23,6 +23,7 @@ export const ReservationPaymentStateSchema = z.enum([
   'authorized',
   'paid',
   'refunded',
+  'failed',
 ]);
 export type ReservationPaymentState = z.infer<
   typeof ReservationPaymentStateSchema
@@ -58,6 +59,14 @@ export const ReservationDetailSchema = ReservationListItemSchema.extend({
   nextJourney: JourneyTargetSchema,
 });
 export type ReservationDetail = z.infer<typeof ReservationDetailSchema>;
+
+export const UpdateReservationPaymentStateSchema = z.object({
+  paymentState: ReservationPaymentStateSchema,
+  providerSessionId: z.string().min(1).optional(),
+});
+export type UpdateReservationPaymentState = z.infer<
+  typeof UpdateReservationPaymentStateSchema
+>;
 
 export const ReservationPaymentModeSchema = z.enum(['authorize', 'pay']);
 export type ReservationPaymentMode = z.infer<
