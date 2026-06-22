@@ -7,114 +7,59 @@ jest.mock('@handoff/contracts', () => ({
 import { ReservationsService } from './reservations.service';
 
 describe('ReservationsService', () => {
-  const bookingsService = {
-    findAll: jest.fn(),
-    findOne: jest.fn(),
-  };
-  const journeysService = {
-    resolve: jest.fn().mockReturnValue({
-      bookingId: 'booking_123',
-      nextJourney: {
-        type: 'pre-check-in',
-        label: 'Pre-check-in',
-        path: '/journeys/pre-check-in',
-        ctaLabel: 'Start check-in',
-      },
-      alternatives: [],
-    }),
-  };
+  const originalFetch = global.fetch;
 
   afterEach(() => {
-    bookingsService.findAll.mockReset();
-    bookingsService.findOne.mockReset();
-    journeysService.resolve.mockClear();
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
   });
 
-  it('maps bookings into reservation list items', async () => {
-    bookingsService.findAll.mockResolvedValue([
-      {
-        id: 'booking_123',
-        vehicleId: 'veh_001',
-        customerName: 'Demo Customer',
-        customerEmail: 'demo@example.com',
-        startDate: '2026-06-21',
-        endDate: '2026-06-22',
-        status: 'confirmed',
-        createdAt: '2026-06-21T12:00:00.000Z',
-      },
-    ]);
-    const service = new ReservationsService(
-      bookingsService as never,
-      journeysService as never,
-    );
+  it('fetches reservation list items from the reservation service', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([reservationListItem]),
+    });
+    const service = new ReservationsService();
 
     const result = await service.findAll();
 
-    expect(result).toEqual([
-      {
-        id: 'booking_123',
-        vehicleId: 'veh_001',
-        customerName: 'Demo Customer',
-        customerEmail: 'demo@example.com',
-        startDate: '2026-06-21',
-        endDate: '2026-06-22',
-        status: 'confirmed',
-        paymentState: 'not_started',
-        detailHref: '/reservations/booking_123',
-        nextActionLabel: 'View details',
-        nextActionHref: '/reservations/booking_123',
-      },
-    ]);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3004/reservations',
+    );
+    expect(result).toEqual([reservationListItem]);
   });
 
-  it('returns reservation detail with next journey action', async () => {
-    bookingsService.findOne.mockResolvedValue({
-      id: 'booking_123',
-      vehicleId: 'veh_001',
-      customerName: 'Demo Customer',
-      customerEmail: 'demo@example.com',
-      startDate: '2026-06-21',
-      endDate: '2026-06-22',
-      status: 'pending',
-      createdAt: '2026-06-21T12:00:00.000Z',
+  it('fetches reservation detail from the reservation service', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(reservationDetail),
     });
-    const service = new ReservationsService(
-      bookingsService as never,
-      journeysService as never,
-    );
+    const service = new ReservationsService();
 
     const result = await service.findOne('booking_123');
 
-    expect(bookingsService.findOne).toHaveBeenCalledWith('booking_123');
-    expect(journeysService.resolve).toHaveBeenCalledWith({
-      bookingId: 'booking_123',
-      vehicleId: 'veh_001',
-      customerEmail: 'demo@example.com',
-      bookingStatus: 'pending',
-      signals: {
-        checkedInEligible: true,
-        biometricEligible: false,
-        receiptAvailable: false,
-        upgradeAvailable: true,
-      },
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:3004/reservations/booking_123',
+    );
+    expect(result).toEqual(reservationDetail);
+  });
+
+  it('preserves reservation service error status', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ message: 'Reservation not found' }),
     });
-    expect(result).toMatchObject({
-      id: 'booking_123',
-      customer: {
-        name: 'Demo Customer',
-        email: 'demo@example.com',
-      },
-      paymentState: 'not_started',
-      nextActionLabel: 'Start check-in',
-      nextActionHref: '/journeys/pre-check-in',
+    const service = new ReservationsService();
+
+    await expect(service.findOne('missing')).rejects.toMatchObject({
+      response: { message: 'Reservation not found' },
+      status: 404,
     });
   });
 
   it('returns reservation domain capabilities without duplicating booking logic', () => {
-    const service = new ReservationsService(
-      bookingsService as never,
-      journeysService as never,
-    );
+    const service = new ReservationsService();
 
     const result = service.getSummary();
 
@@ -130,3 +75,33 @@ describe('ReservationsService', () => {
     ]);
   });
 });
+
+const reservationListItem = {
+  id: 'booking_123',
+  vehicleId: 'veh_001',
+  customerName: 'Demo Customer',
+  customerEmail: 'demo@example.com',
+  startDate: '2026-06-21',
+  endDate: '2026-06-22',
+  status: 'pending',
+  paymentState: 'not_started',
+  detailHref: '/reservations/booking_123',
+  nextActionLabel: 'Start check-in',
+  nextActionHref: '/journeys/pre-check-in',
+};
+
+const reservationDetail = {
+  ...reservationListItem,
+  vehicleLabel: 'veh_001',
+  customer: {
+    name: 'Demo Customer',
+    email: 'demo@example.com',
+  },
+  nextJourney: {
+    type: 'pre-check-in',
+    label: 'Pre-check-in',
+    path: '/journeys/pre-check-in',
+    ctaLabel: 'Start check-in',
+  },
+  createdAt: '2026-06-21T12:00:00.000Z',
+};

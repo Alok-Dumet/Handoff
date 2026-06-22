@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import {
   ReservationDetailSchema,
   ReservationListSchema,
@@ -7,71 +7,32 @@ import {
   type ReservationListItem,
   type ReservationSummary,
 } from '@handoff/contracts';
-import { BookingsService } from '../bookings/bookings.service';
-import { JourneysService } from '../journeys/journeys.service';
 
 @Injectable()
 export class ReservationsService {
-  constructor(
-    private readonly bookingsService: BookingsService,
-    private readonly journeysService: JourneysService,
-  ) {}
+  private readonly reservationServiceUrl =
+    process.env.RESERVATION_SERVICE_URL ?? 'http://localhost:3004';
 
   async findAll(): Promise<ReservationListItem[]> {
-    const bookings = await this.bookingsService.findAll();
+    const res = await fetch(`${this.reservationServiceUrl}/reservations`);
 
-    return ReservationListSchema.parse(
-      bookings.map((booking) => ({
-        id: booking.id,
-        vehicleId: booking.vehicleId,
-        customerName: booking.customerName,
-        customerEmail: booking.customerEmail,
-        startDate: booking.startDate,
-        endDate: booking.endDate,
-        status: booking.status,
-        paymentState: 'not_started',
-        detailHref: `/reservations/${booking.id}`,
-        nextActionLabel: 'View details',
-        nextActionHref: `/reservations/${booking.id}`,
-      })),
-    );
+    if (!res.ok) {
+      throw await toUpstreamException(res);
+    }
+
+    return ReservationListSchema.parse(await res.json());
   }
 
   async findOne(id: string): Promise<ReservationDetail> {
-    const booking = await this.bookingsService.findOne(id);
-    const journey = this.journeysService.resolve({
-      bookingId: booking.id,
-      vehicleId: booking.vehicleId,
-      customerEmail: booking.customerEmail,
-      bookingStatus: booking.status,
-      signals: {
-        checkedInEligible: true,
-        biometricEligible: false,
-        receiptAvailable: booking.status !== 'pending',
-        upgradeAvailable: booking.status === 'pending',
-      },
-    });
+    const res = await fetch(
+      `${this.reservationServiceUrl}/reservations/${encodeURIComponent(id)}`,
+    );
 
-    return ReservationDetailSchema.parse({
-      id: booking.id,
-      vehicleId: booking.vehicleId,
-      vehicleLabel: booking.vehicleId,
-      customerName: booking.customerName,
-      customerEmail: booking.customerEmail,
-      customer: {
-        name: booking.customerName,
-        email: booking.customerEmail,
-      },
-      startDate: booking.startDate,
-      endDate: booking.endDate,
-      status: booking.status,
-      paymentState: 'not_started',
-      detailHref: `/reservations/${booking.id}`,
-      nextActionLabel: journey.nextJourney.ctaLabel,
-      nextActionHref: journey.nextJourney.path,
-      nextJourney: journey.nextJourney,
-      createdAt: booking.createdAt,
-    });
+    if (!res.ok) {
+      throw await toUpstreamException(res);
+    }
+
+    return ReservationDetailSchema.parse(await res.json());
   }
 
   getSummary(): ReservationSummary {
@@ -98,4 +59,20 @@ export class ReservationsService {
       ],
     });
   }
+}
+
+async function toUpstreamException(res: Response): Promise<HttpException> {
+  let body: string | Record<string, unknown> =
+    `reservation service responded ${res.status}`;
+  try {
+    const jsonBody: unknown = await res.json();
+    body =
+      typeof jsonBody === 'object' && jsonBody !== null
+        ? (jsonBody as Record<string, unknown>)
+        : String(jsonBody);
+  } catch {
+    // Keep the fallback body when reservation service did not return JSON.
+  }
+
+  return new HttpException(body, res.status);
 }
