@@ -7,8 +7,6 @@ import {
   ConfirmVehicleUpgradeWorkflowSchema,
   IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
-  CurrentRentalSchema,
-  ReservationDetailSchema,
   ReservationListSchema,
   ReservationPaymentSessionSchema,
   SelectVehicleUpgradeWorkflowSchema,
@@ -21,11 +19,9 @@ import {
   type BookingJourneyResponse,
   type CreateBooking,
   type CreateReservationPaymentSession,
-  type CurrentRental,
   type EReceiptWorkflow,
   type IdentityVerificationWorkflow,
   type PreCheckInWorkflow,
-  type ReservationDetail,
   type ReservationListItem,
   type ReservationPaymentSession,
   type SelectVehicleUpgradeWorkflow,
@@ -35,21 +31,13 @@ import {
   type UpdateEReceiptDeliveryPreference,
   type VehicleUpgradeWorkflow,
 } from "@handoff/contracts";
+import { BffRequestError, BookingRequestError } from "./bff-errors";
+
+export { BffRequestError, BookingRequestError } from "./bff-errors";
 
 function getPublicBffUrl() {
   return process.env.NEXT_PUBLIC_BFF_URL ?? "http://localhost:3001";
 }
-
-export class BffRequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
-
-export class BookingRequestError extends BffRequestError {}
 
 export async function createBooking(
   input: CreateBooking,
@@ -87,35 +75,6 @@ export async function getReservations(): Promise<ReservationListItem[]> {
   }
 
   return ReservationListSchema.parse(await res.json());
-}
-
-export async function getReservation(id: string): Promise<ReservationDetail> {
-  const res = await fetch(
-    `${getPublicBffUrl()}/reservations/${encodeURIComponent(id)}`,
-  );
-
-  if (!res.ok) {
-    throw new BffRequestError(`Reservation failed with ${res.status}`, res.status);
-  }
-
-  return ReservationDetailSchema.parse(await res.json());
-}
-
-export async function getCurrentRental(
-  reservationId?: string,
-): Promise<CurrentRental> {
-  const url = `${getPublicBffUrl()}/rentals/current`;
-  const requestUrl = reservationId
-    ? `${url}?reservationId=${encodeURIComponent(reservationId)}`
-    : url;
-
-  const res = await fetch(requestUrl);
-
-  if (!res.ok) {
-    throw new BffRequestError(`Rental status failed with ${res.status}`, res.status);
-  }
-
-  return CurrentRentalSchema.parse(await res.json());
 }
 
 export async function createReservationPaymentSession(

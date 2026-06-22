@@ -3,7 +3,6 @@ import {
   BookingRequestError,
   createBooking,
   createReservationPaymentSession,
-  getCurrentRental,
   getEReceiptWorkflow,
   getIdentityVerificationWorkflow,
   getBookings,
@@ -137,21 +136,6 @@ describe("client API helpers", () => {
           mode: "authorize",
         }),
       },
-    );
-  });
-
-  it("loads the current rental from the BFF", async () => {
-    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(jsonResponse(currentRental));
-
-    await expect(getCurrentRental("booking_123")).resolves.toEqual(
-      currentRental,
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://bff.test/rentals/current?reservationId=booking_123",
     );
   });
 
@@ -485,36 +469,6 @@ const vehicleUpgradeWorkflow = {
   ],
   updatedAt: "2026-06-22T12:00:00.000Z",
   message: "Review upgrade options for reservation booking_123.",
-};
-
-const currentRental = {
-  rentalId: "rental_booking_123",
-  reservationId: "booking_123",
-  vehicleId: "veh_001",
-  customerId: "customer_demo@example.com",
-  customerName: "Demo Customer",
-  customerEmail: "demo@example.com",
-  status: "active",
-  reservationStatus: "confirmed",
-  paymentState: "paid",
-  vehicleLabel: "2024 Toyota Corolla",
-  startDate: "2026-06-21",
-  endDate: "2026-06-23",
-  pickupLocation: "Primary rental desk",
-  returnLocation: "Primary rental return desk",
-  supportActions: [
-    {
-      label: "View reservation",
-      href: "/reservations/booking_123",
-      variant: "contained",
-    },
-    {
-      label: "View pre-check-in",
-      href: "/journeys/pre-check-in?reservationId=booking_123",
-      variant: "outlined",
-    },
-  ],
-  updatedAt: "2026-06-22T12:00:00.000Z",
 };
 
 function jsonResponse(body: unknown, status = 200) {

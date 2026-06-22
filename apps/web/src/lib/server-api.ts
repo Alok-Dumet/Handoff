@@ -2,23 +2,36 @@ import {
   AemPageContentSchema,
   AemJourneyPageContentSchema,
   AuthSessionSchema,
+  CurrentRentalSchema,
   CustomerProfileSchema,
+  ReservationDetailSchema,
   VehicleSummaryListSchema,
   type AemPageContent,
   type AemJourneyPageContent,
   type AuthSession,
+  type CurrentRental,
   type CustomerProfile,
+  type ReservationDetail,
   type VehicleSummary,
 } from "@handoff/contracts";
 import type { BrandConfig } from "../brands";
+import { BffRequestError } from "./bff-errors";
 import { getClerkIdentityHeaders } from "./server-auth";
+
+const REFERENCE_DATA_REVALIDATE_SECONDS = 300;
+const AEM_CONTENT_REVALIDATE_SECONDS = 60;
 
 function getServerBffUrl() {
   return process.env.BFF_URL ?? "http://localhost:3001";
 }
 
 export async function getVehicles(): Promise<VehicleSummary[]> {
-  const res = await fetch(`${getServerBffUrl()}/vehicles`, { cache: "no-store" });
+  const res = await fetch(`${getServerBffUrl()}/vehicles`, {
+    next: {
+      revalidate: REFERENCE_DATA_REVALIDATE_SECONDS,
+      tags: ["vehicles"],
+    },
+  });
 
   if (!res.ok) {
     throw new Error(`BFF responded ${res.status}`);
@@ -31,7 +44,10 @@ export async function getAemPageContent(
   brand: BrandConfig,
 ): Promise<AemPageContent> {
   const res = await fetch(`${getServerBffUrl()}/content/pages/${brand.id}`, {
-    cache: "no-store",
+    next: {
+      revalidate: AEM_CONTENT_REVALIDATE_SECONDS,
+      tags: ["aem-content", `aem-page-${brand.id}`],
+    },
   });
 
   if (!res.ok) {
@@ -45,7 +61,10 @@ export async function getAemJourneyPageContent(
   journey: string,
 ): Promise<AemJourneyPageContent> {
   const res = await fetch(`${getServerBffUrl()}/content/journeys/${journey}`, {
-    cache: "no-store",
+    next: {
+      revalidate: AEM_CONTENT_REVALIDATE_SECONDS,
+      tags: ["aem-content", `aem-journey-${journey}`],
+    },
   });
 
   if (!res.ok) {
@@ -79,6 +98,36 @@ export async function getCurrentCustomer(): Promise<CustomerProfile> {
   }
 
   return CustomerProfileSchema.parse(await res.json());
+}
+
+export async function getReservation(id: string): Promise<ReservationDetail> {
+  const res = await fetch(
+    `${getServerBffUrl()}/reservations/${encodeURIComponent(id)}`,
+    { cache: "no-store" },
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(`Reservation failed with ${res.status}`, res.status);
+  }
+
+  return ReservationDetailSchema.parse(await res.json());
+}
+
+export async function getCurrentRental(
+  reservationId?: string,
+): Promise<CurrentRental> {
+  const url = `${getServerBffUrl()}/rentals/current`;
+  const requestUrl = reservationId
+    ? `${url}?reservationId=${encodeURIComponent(reservationId)}`
+    : url;
+
+  const res = await fetch(requestUrl, { cache: "no-store" });
+
+  if (!res.ok) {
+    throw new BffRequestError(`Rental status failed with ${res.status}`, res.status);
+  }
+
+  return CurrentRentalSchema.parse(await res.json());
 }
 
 function brandToAemPageContent(brand: BrandConfig): AemPageContent {

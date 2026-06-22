@@ -6,7 +6,8 @@ import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { BffRequestError, getCurrentRental } from "../../lib/client-api";
+import { BffRequestError } from "../../lib/bff-errors";
+import { getCurrentRental } from "../../lib/server-api";
 import { requireSignedIn } from "../../lib/server-auth";
 
 type RentalPageParams = {

@@ -7,7 +7,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { notFound } from "next/navigation";
 import ReservationPaymentAction from "../../../components/ReservationPaymentAction";
-import { BffRequestError, getReservation } from "../../../lib/client-api";
+import { BffRequestError } from "../../../lib/bff-errors";
+import { getReservation } from "../../../lib/server-api";
 import { requireSignedIn } from "../../../lib/server-auth";
 
 type ReservationDetailPageParams = {
