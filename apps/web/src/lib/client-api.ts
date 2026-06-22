@@ -3,6 +3,7 @@ import {
   BookingListSchema,
   CreateBookingSchema,
   CreateReservationPaymentSessionSchema,
+  EReceiptWorkflowSchema,
   IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
   ReservationDetailSchema,
@@ -11,10 +12,12 @@ import {
   SubmitPreCheckInWorkflowSchema,
   StartIdentityVerificationWorkflowSchema,
   UpdateIdentityVerificationStatusSchema,
+  UpdateEReceiptDeliveryPreferenceSchema,
   type Booking,
   type BookingJourneyResponse,
   type CreateBooking,
   type CreateReservationPaymentSession,
+  type EReceiptWorkflow,
   type IdentityVerificationWorkflow,
   type PreCheckInWorkflow,
   type ReservationDetail,
@@ -23,6 +26,7 @@ import {
   type StartIdentityVerificationWorkflow,
   type SubmitPreCheckInWorkflow,
   type UpdateIdentityVerificationStatus,
+  type UpdateEReceiptDeliveryPreference,
 } from "@handoff/contracts";
 
 function getPublicBffUrl() {
@@ -203,4 +207,42 @@ export async function updateIdentityVerificationStatus(
   }
 
   return IdentityVerificationWorkflowSchema.parse(await res.json());
+}
+
+export async function getEReceiptWorkflow(
+  reservationId: string,
+): Promise<EReceiptWorkflow> {
+  const res = await fetch(
+    `${getPublicBffUrl()}/journeys/e-receipt/${encodeURIComponent(reservationId)}`,
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(`E-receipt failed with ${res.status}`, res.status);
+  }
+
+  return EReceiptWorkflowSchema.parse(await res.json());
+}
+
+export async function updateEReceiptDeliveryPreference(
+  input: UpdateEReceiptDeliveryPreference,
+): Promise<EReceiptWorkflow> {
+  const payload = UpdateEReceiptDeliveryPreferenceSchema.parse(input);
+
+  const res = await fetch(
+    `${getPublicBffUrl()}/journeys/e-receipt/delivery-preference`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!res.ok) {
+    throw new BffRequestError(
+      `E-receipt delivery preference failed with ${res.status}`,
+      res.status,
+    );
+  }
+
+  return EReceiptWorkflowSchema.parse(await res.json());
 }

@@ -3,11 +3,13 @@ import {
   BookingRequestError,
   createBooking,
   createReservationPaymentSession,
+  getEReceiptWorkflow,
   getIdentityVerificationWorkflow,
   getBookings,
   getPreCheckInWorkflow,
   startIdentityVerificationWorkflow,
   submitPreCheckInWorkflow,
+  updateEReceiptDeliveryPreference,
   updateIdentityVerificationStatus,
 } from "./client-api";
 
@@ -250,6 +252,53 @@ describe("client API helpers", () => {
       },
     );
   });
+
+  it("loads an e-receipt workflow from the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(eReceiptWorkflow));
+
+    await expect(getEReceiptWorkflow("booking_123")).resolves.toEqual(
+      eReceiptWorkflow,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/e-receipt/booking_123",
+    );
+  });
+
+  it("updates e-receipt delivery preference through the BFF", async () => {
+    vi.stubEnv("NEXT_PUBLIC_BFF_URL", "http://bff.test");
+    const downloadedWorkflow = {
+      ...eReceiptWorkflow,
+      status: "ready",
+      deliveryPreference: "download",
+      message: "Receipt ready for download.",
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(downloadedWorkflow));
+
+    await expect(
+      updateEReceiptDeliveryPreference({
+        reservationId: "booking_123",
+        deliveryPreference: "download",
+      }),
+    ).resolves.toEqual(downloadedWorkflow);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://bff.test/journeys/e-receipt/delivery-preference",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          reservationId: "booking_123",
+          deliveryPreference: "download",
+        }),
+      },
+    );
+  });
 });
 
 const preCheckInWorkflow = {
@@ -279,6 +328,25 @@ const identityWorkflow = {
   provider: "mock-identity-provider",
   message: "Identity verification has not started.",
   updatedAt: "2026-06-22T12:00:00.000Z",
+};
+
+const eReceiptWorkflow = {
+  type: "e-receipt",
+  reservationId: "booking_123",
+  status: "sent",
+  deliveryPreference: "email",
+  deliveryEmail: "test@example.com",
+  receiptNumber: "rcpt_booking_123",
+  lineItems: [
+    { label: "2024 Toyota Corolla", amountCents: 8400 },
+    { label: "Taxes and fees", amountCents: 1008 },
+  ],
+  subtotalCents: 8400,
+  taxCents: 1008,
+  totalCents: 9408,
+  updatedAt: "2026-06-22T12:00:00.000Z",
+  sentAt: "2026-06-22T12:00:00.000Z",
+  message: "Receipt sent to test@example.com.",
 };
 
 function jsonResponse(body: unknown, status = 200) {

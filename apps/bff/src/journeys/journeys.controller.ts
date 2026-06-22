@@ -10,9 +10,11 @@ import {
   IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
   ResolveJourneyRequestSchema,
+  UpdateEReceiptDeliveryPreferenceSchema,
   StartIdentityVerificationWorkflowSchema,
   SubmitPreCheckInWorkflowSchema,
   UpdateIdentityVerificationStatusSchema,
+  type EReceiptWorkflow,
   type IdentityVerificationWorkflow,
   type PreCheckInWorkflow,
   type ResolveJourneyResponse,
@@ -88,5 +90,24 @@ export class JourneysController {
         result.data.status,
       ),
     );
+  }
+
+  @Get('e-receipt/:reservationId')
+  getEReceipt(
+    @Param('reservationId') reservationId: string,
+  ): Promise<EReceiptWorkflow> {
+    return this.journeysService.getEReceipt(reservationId);
+  }
+
+  @Post('e-receipt/delivery-preference')
+  updateEReceiptDeliveryPreference(
+    @Body() body: unknown,
+  ): Promise<EReceiptWorkflow> {
+    const result = UpdateEReceiptDeliveryPreferenceSchema.safeParse(body);
+    if (!result.success) {
+      throw new BadRequestException(result.error.issues);
+    }
+
+    return this.journeysService.updateEReceiptDeliveryPreference(result.data);
   }
 }

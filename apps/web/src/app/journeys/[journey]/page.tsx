@@ -5,6 +5,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { notFound } from "next/navigation";
 import type { JourneyType } from "@handoff/contracts";
+import EReceiptWorkflow from "../../../components/EReceiptWorkflow";
 import IdentityVerificationWorkflow from "../../../components/IdentityVerificationWorkflow";
 import PreCheckInWorkflow from "../../../components/PreCheckInWorkflow";
 
@@ -88,6 +89,10 @@ export default async function JourneyPage({
             />
           ) : journey === "biometric" ? (
             <IdentityVerificationWorkflow
+              reservationId={reservationId ?? "local-reservation"}
+            />
+          ) : journey === "e-receipt" ? (
+            <EReceiptWorkflow
               reservationId={reservationId ?? "local-reservation"}
             />
           ) : (

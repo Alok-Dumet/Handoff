@@ -147,3 +147,48 @@ export const UpdateIdentityVerificationStatusSchema = z.object({
 export type UpdateIdentityVerificationStatus = z.infer<
   typeof UpdateIdentityVerificationStatusSchema
 >;
+
+export const ReceiptDeliveryPreferenceSchema = z.enum(['email', 'download']);
+export type ReceiptDeliveryPreference = z.infer<
+  typeof ReceiptDeliveryPreferenceSchema
+>;
+
+export const ReceiptLineItemSchema = z.object({
+  label: z.string().min(1),
+  amountCents: z.number().int().nonnegative(),
+});
+export type ReceiptLineItem = z.infer<typeof ReceiptLineItemSchema>;
+
+export const EReceiptWorkflowStatusSchema = z.enum([
+  'not_started',
+  'ready',
+  'sent',
+]);
+export type EReceiptWorkflowStatus = z.infer<
+  typeof EReceiptWorkflowStatusSchema
+>;
+
+export const EReceiptWorkflowSchema = z.object({
+  type: z.literal('e-receipt'),
+  reservationId: z.string().min(1),
+  status: EReceiptWorkflowStatusSchema,
+  deliveryPreference: ReceiptDeliveryPreferenceSchema,
+  deliveryEmail: z.email(),
+  receiptNumber: z.string().min(1),
+  lineItems: z.array(ReceiptLineItemSchema).min(1),
+  subtotalCents: z.number().int().nonnegative(),
+  taxCents: z.number().int().nonnegative(),
+  totalCents: z.number().int().positive(),
+  updatedAt: z.iso.datetime(),
+  sentAt: z.iso.datetime().optional(),
+  message: z.string().min(1),
+});
+export type EReceiptWorkflow = z.infer<typeof EReceiptWorkflowSchema>;
+
+export const UpdateEReceiptDeliveryPreferenceSchema = z.object({
+  reservationId: z.string().min(1),
+  deliveryPreference: ReceiptDeliveryPreferenceSchema,
+});
+export type UpdateEReceiptDeliveryPreference = z.infer<
+  typeof UpdateEReceiptDeliveryPreferenceSchema
+>;

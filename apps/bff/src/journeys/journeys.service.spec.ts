@@ -1,4 +1,5 @@
 jest.mock('@handoff/contracts', () => ({
+  EReceiptWorkflowSchema: { parse: (value: unknown) => value },
   IdentityVerificationWorkflowSchema: { parse: (value: unknown) => value },
   PreCheckInWorkflowSchema: { parse: (value: unknown) => value },
   ResolveJourneyResponseSchema: { parse: (value: unknown) => value },
@@ -198,5 +199,104 @@ describe('JourneysService', () => {
     expect(updated.status).toBe('verified');
     expect(updated.message).toContain('complete');
     expect(stored).toEqual(updated);
+  });
+
+  it('builds an itemized e-receipt workflow from reservation and vehicle data', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('/reservations/booking_123')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              id: 'booking_123',
+              vehicleId: 'veh_001',
+              customerName: 'Demo Customer',
+              customerEmail: 'demo@example.com',
+              startDate: '2026-06-21',
+              endDate: '2026-06-23',
+              status: 'confirmed',
+              paymentState: 'paid',
+            }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            {
+              id: 'veh_001',
+              make: 'Toyota',
+              model: 'Corolla',
+              year: 2024,
+              pricePerDay: 42,
+            },
+          ]),
+      });
+    });
+
+    const service = new JourneysService(adapter);
+    const result = await service.getEReceipt('booking_123');
+
+    expect(result).toMatchObject({
+      type: 'e-receipt',
+      reservationId: 'booking_123',
+      status: 'sent',
+      deliveryPreference: 'email',
+      deliveryEmail: 'demo@example.com',
+      receiptNumber: 'rcpt_booking_123',
+      subtotalCents: 8400,
+      taxCents: 1008,
+      totalCents: 9408,
+      lineItems: [
+        { label: '2024 Toyota Corolla', amountCents: 8400 },
+        { label: 'Taxes and fees', amountCents: 1008 },
+      ],
+    });
+  });
+
+  it('updates e-receipt delivery preference to download', async () => {
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.includes('/reservations/booking_123')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              id: 'booking_123',
+              vehicleId: 'veh_001',
+              customerName: 'Demo Customer',
+              customerEmail: 'demo@example.com',
+              startDate: '2026-06-21',
+              endDate: '2026-06-23',
+              status: 'confirmed',
+              paymentState: 'paid',
+            }),
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            {
+              id: 'veh_001',
+              make: 'Toyota',
+              model: 'Corolla',
+              year: 2024,
+              pricePerDay: 42,
+            },
+          ]),
+      });
+    });
+
+    const service = new JourneysService(adapter);
+    const result = await service.updateEReceiptDeliveryPreference({
+      reservationId: 'booking_123',
+      deliveryPreference: 'download',
+    });
+
+    expect(result.status).toBe('ready');
+    expect(result.deliveryPreference).toBe('download');
+    expect(result.message).toBe('Receipt ready for download.');
   });
 });

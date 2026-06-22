@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import {
+  EReceiptWorkflowSchema,
   IdentityVerificationWorkflowSchema,
   PreCheckInWorkflowSchema,
   ResolveJourneyResponseSchema,
+  type EReceiptWorkflow,
+  type ReceiptDeliveryPreference,
   type IdentityVerificationStatus,
   type IdentityVerificationWorkflow,
   type JourneyTarget,
@@ -11,8 +14,20 @@ import {
   type ResolveJourneyRequest,
   type ResolveJourneyResponse,
   type SubmitPreCheckInWorkflow,
+  type UpdateEReceiptDeliveryPreference,
 } from '@handoff/contracts';
 import { JourneyContentAdapter } from './content/journey-content.adapter';
+
+type ReservationSnapshot = {
+  id: string;
+  vehicleId: string;
+  customerName: string;
+  customerEmail: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  paymentState: string;
+};
 
 @Injectable()
 export class JourneysService {
@@ -21,6 +36,7 @@ export class JourneysService {
     string,
     IdentityVerificationWorkflow
   >();
+  private readonly eReceiptWorkflows = new Map<string, EReceiptWorkflow>();
 
   constructor(private readonly contentAdapter: JourneyContentAdapter) {}
 
@@ -130,6 +146,32 @@ export class JourneysService {
     return workflow;
   }
 
+  async getEReceipt(reservationId: string): Promise<EReceiptWorkflow> {
+    const existing = this.eReceiptWorkflows.get(reservationId);
+
+    if (existing) {
+      return existing;
+    }
+
+    const reservation = await this.getReservation(reservationId);
+    const receipt = await this.createEReceipt(reservation, 'email');
+    this.eReceiptWorkflows.set(reservationId, receipt);
+    return receipt;
+  }
+
+  async updateEReceiptDeliveryPreference(
+    input: UpdateEReceiptDeliveryPreference,
+  ): Promise<EReceiptWorkflow> {
+    const reservation = await this.getReservation(input.reservationId);
+    const workflow = await this.createEReceipt(
+      reservation,
+      input.deliveryPreference,
+    );
+    this.eReceiptWorkflows.set(input.reservationId, workflow);
+
+    return workflow;
+  }
+
   private selectJourneyType(
     input: ResolveJourneyRequest,
     defaultJourney: JourneyType,
@@ -179,6 +221,104 @@ export class JourneysService {
       updatedAt: new Date().toISOString(),
     });
   }
+
+  private async getReservation(reservationId: string): Promise<{
+    id: string;
+    vehicleId: string;
+    customerName: string;
+    customerEmail: string;
+    startDate: string;
+    endDate: string;
+    status: string;
+    paymentState: string;
+  }> {
+    const reservationServiceUrl =
+      process.env.RESERVATION_SERVICE_URL ?? 'http://localhost:3004';
+    const res = await fetch(
+      `${reservationServiceUrl}/reservations/${encodeURIComponent(reservationId)}`,
+    );
+
+    if (!res.ok) {
+      throw new Error(`reservation service responded ${res.status}`);
+    }
+
+    return (await res.json()) as ReservationSnapshot;
+  }
+
+  private async createEReceipt(
+    reservation: ReservationSnapshot,
+    deliveryPreference: ReceiptDeliveryPreference = 'email',
+  ): Promise<EReceiptWorkflow> {
+    const vehicle = await this.getVehicle(reservation.vehicleId);
+    const rentalDays = calculateRentalDays(
+      reservation.startDate,
+      reservation.endDate,
+    );
+    const baseAmount = vehicle.pricePerDay * rentalDays * 100;
+    const taxes = Math.round(baseAmount * 0.12);
+    const subtotalCents = baseAmount;
+    const totalCents = subtotalCents + taxes;
+    const lineItems = [
+      {
+        label: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+        amountCents: subtotalCents,
+      },
+      {
+        label: 'Taxes and fees',
+        amountCents: taxes,
+      },
+    ];
+
+    return EReceiptWorkflowSchema.parse({
+      type: 'e-receipt',
+      reservationId: reservation.id,
+      status: deliveryPreference === 'download' ? 'ready' : 'sent',
+      deliveryPreference,
+      deliveryEmail: reservation.customerEmail,
+      receiptNumber: `rcpt_${reservation.id}`,
+      lineItems,
+      subtotalCents,
+      taxCents: taxes,
+      totalCents,
+      updatedAt: new Date().toISOString(),
+      sentAt:
+        deliveryPreference === 'email' ? new Date().toISOString() : undefined,
+      message:
+        deliveryPreference === 'email'
+          ? `Receipt sent to ${reservation.customerEmail}.`
+          : 'Receipt ready for download.',
+    });
+  }
+
+  private async getVehicle(vehicleId: string): Promise<{
+    id: string;
+    make: string;
+    model: string;
+    year: number;
+    pricePerDay: number;
+  }> {
+    const refdataUrl = process.env.REFDATA_URL ?? 'http://localhost:3002';
+    const res = await fetch(`${refdataUrl}/vehicles`);
+
+    if (!res.ok) {
+      throw new Error(`refdata responded ${res.status}`);
+    }
+
+    const vehicles = (await res.json()) as Array<{
+      id: string;
+      make: string;
+      model: string;
+      year: number;
+      pricePerDay: number;
+    }>;
+    const vehicle = vehicles.find((item) => item.id === vehicleId);
+
+    if (!vehicle) {
+      throw new Error('Vehicle not found');
+    }
+
+    return vehicle;
+  }
 }
 
 function getIdentityStatusMessage(
@@ -197,4 +337,12 @@ function getIdentityStatusMessage(
   }
 
   return 'Identity verification failed. The driver should retry or complete manual review at pickup.';
+}
+
+function calculateRentalDays(startDate: string, endDate: string): number {
+  const start = Date.parse(`${startDate}T00:00:00.000Z`);
+  const end = Date.parse(`${endDate}T00:00:00.000Z`);
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+  return Math.max(1, Math.ceil((end - start) / millisecondsPerDay));
 }
