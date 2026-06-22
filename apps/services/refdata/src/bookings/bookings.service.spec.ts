@@ -28,6 +28,7 @@ type MockPrisma = {
     create: jest.Mock;
     findFirst: jest.Mock;
     findMany: jest.Mock;
+    findUnique: jest.Mock;
   };
 };
 
@@ -40,6 +41,7 @@ describe('BookingsService', () => {
       create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      findUnique: jest.fn(),
     },
   };
 
@@ -126,6 +128,43 @@ describe('BookingsService', () => {
     });
     expect(bookings).toHaveLength(1);
     expect(bookings[0]?.createdAt).toBe('2026-06-21T12:00:00.000Z');
+  });
+
+  it('returns a single booking by id', async () => {
+    prisma.booking.findUnique.mockResolvedValue({
+      id: 'booking_123',
+      vehicleId: 'veh_001',
+      customerName: 'Demo Customer',
+      customerEmail: 'demo@example.com',
+      startDate: new Date('2026-06-21T00:00:00.000Z'),
+      endDate: new Date('2026-06-22T00:00:00.000Z'),
+      status: 'pending',
+      createdAt: new Date('2026-06-21T12:00:00.000Z'),
+    });
+
+    const service = new BookingsService(prisma as never);
+    const booking = await service.findOne('booking_123');
+
+    expect(prisma.booking.findUnique).toHaveBeenCalledWith({
+      where: { id: 'booking_123' },
+    });
+    expect(booking).toEqual(
+      expect.objectContaining({
+        id: 'booking_123',
+        startDate: '2026-06-21',
+        endDate: '2026-06-22',
+      }),
+    );
+  });
+
+  it('throws not found when a booking id is missing', async () => {
+    prisma.booking.findUnique.mockResolvedValue(null);
+
+    const service = new BookingsService(prisma as never);
+
+    await expect(service.findOne('missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('rejects bookings for missing vehicles', async () => {

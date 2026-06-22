@@ -25,6 +25,18 @@ export class BookingsService {
     return BookingListSchema.parse(bookings.map(toContractBooking));
   }
 
+  async findOne(id: string): Promise<Booking> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+    });
+
+    if (!booking) {
+      throw new NotFoundException({ message: 'Booking not found' });
+    }
+
+    return BookingSchema.parse(toContractBooking(booking));
+  }
+
   async create(input: CreateBooking): Promise<Booking> {
     const startDate = new Date(input.startDate);
     const endDate = new Date(input.endDate);

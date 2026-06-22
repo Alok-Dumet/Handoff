@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
 } from '@nestjs/common';
 import { type Booking, CreateBookingSchema } from '@handoff/contracts';
@@ -15,6 +16,11 @@ export class BookingsController {
   @Get()
   findAll(): Promise<Booking[]> {
     return this.bookingsService.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<Booking> {
+    return this.bookingsService.findOne(id);
   }
 
   @Post()

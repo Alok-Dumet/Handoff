@@ -1,5 +1,6 @@
 jest.mock("@handoff/contracts", () => ({
   BookingListSchema: { parse: (value: unknown) => value },
+  BookingSchema: { parse: (value: unknown) => value },
   ReservationDetailSchema: { parse: (value: unknown) => value },
   ReservationListSchema: { parse: (value: unknown) => value },
 }));
@@ -44,12 +45,15 @@ describe("ReservationsService", () => {
   it("returns reservation detail from refdata booking data", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve([bookingFixture]),
+      json: () => Promise.resolve(bookingFixture),
     });
     const service = new ReservationsService();
 
     const result = await service.findOne("booking_123");
 
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:3002/bookings/booking_123",
+    );
     expect(result).toMatchObject({
       id: "booking_123",
       customer: {
@@ -64,10 +68,16 @@ describe("ReservationsService", () => {
   });
 
   it("models updated payment state in reservation detail and list responses", async () => {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve([bookingFixture]),
-    });
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(bookingFixture),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([bookingFixture]),
+      });
     const service = new ReservationsService();
 
     const updated = await service.updatePaymentState("booking_123", {
@@ -76,6 +86,14 @@ describe("ReservationsService", () => {
     });
     const list = await service.findAll();
 
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:3002/bookings/booking_123",
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://localhost:3002/bookings",
+    );
     expect(updated.paymentState).toBe("authorized");
     expect(list[0]?.paymentState).toBe("authorized");
   });
@@ -96,8 +114,9 @@ describe("ReservationsService", () => {
 
   it("throws not found when reservation is missing", async () => {
     global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve([]),
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ message: "Booking not found" }),
     });
     const service = new ReservationsService();
 

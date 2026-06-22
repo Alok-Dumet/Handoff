@@ -1,6 +1,7 @@
 import { HttpException, Injectable, NotFoundException } from "@nestjs/common";
 import {
   BookingListSchema,
+  BookingSchema,
   ReservationDetailSchema,
   ReservationListSchema,
   type Booking,
@@ -27,33 +28,19 @@ export class ReservationsService {
   }
 
   async findOne(id: string): Promise<ReservationDetail> {
-    const bookings = await this.getBookings();
-    const booking = bookings.find((item) => item.id === id);
+    const booking = await this.getBooking(id);
 
-    if (!booking) {
-      throw new NotFoundException({ message: "Reservation not found" });
-    }
-
-    return ReservationDetailSchema.parse({
-      ...toListItem(booking, this.getPaymentState(booking.id)),
-      vehicleLabel: booking.vehicleId,
-      customer: {
-        name: booking.customerName,
-        email: booking.customerEmail,
-      },
-      nextJourney: defaultNextJourney,
-      createdAt: booking.createdAt,
-    });
+    return toDetail(booking, this.getPaymentState(booking.id));
   }
 
   async updatePaymentState(
     id: string,
     input: UpdateReservationPaymentState,
   ): Promise<ReservationDetail> {
-    await this.assertReservationExists(id);
+    const booking = await this.getBooking(id);
     this.paymentStates.set(id, input.paymentState);
 
-    return this.findOne(id);
+    return toDetail(booking, input.paymentState);
   }
 
   private async getBookings(): Promise<Booking[]> {
@@ -66,18 +53,41 @@ export class ReservationsService {
     return BookingListSchema.parse(await res.json());
   }
 
-  private async assertReservationExists(id: string): Promise<void> {
-    const bookings = await this.getBookings();
-    const booking = bookings.find((item) => item.id === id);
+  private async getBooking(id: string): Promise<Booking> {
+    const res = await fetch(
+      `${this.refdataUrl}/bookings/${encodeURIComponent(id)}`,
+    );
 
-    if (!booking) {
-      throw new NotFoundException({ message: "Reservation not found" });
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw new NotFoundException({ message: "Reservation not found" });
+      }
+
+      throw await toUpstreamException(res);
     }
+
+    return BookingSchema.parse(await res.json());
   }
 
   private getPaymentState(id: string): ReservationPaymentState {
     return this.paymentStates.get(id) ?? "not_started";
   }
+}
+
+function toDetail(
+  booking: Booking,
+  paymentState: ReservationPaymentState,
+): ReservationDetail {
+  return ReservationDetailSchema.parse({
+    ...toListItem(booking, paymentState),
+    vehicleLabel: booking.vehicleId,
+    customer: {
+      name: booking.customerName,
+      email: booking.customerEmail,
+    },
+    nextJourney: defaultNextJourney,
+    createdAt: booking.createdAt,
+  });
 }
 
 const defaultNextJourney = {
