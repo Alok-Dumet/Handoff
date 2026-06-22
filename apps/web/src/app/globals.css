@@ -1,1 +1,38 @@
-html, body { height: 100%; }
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 8% 0%, rgb(21 101 192 / 0.14), transparent 30rem),
+    radial-gradient(circle at 95% 10%, rgb(0 137 123 / 0.12), transparent 28rem),
+    #f5f7f4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@keyframes handoff-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

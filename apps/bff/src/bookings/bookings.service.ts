@@ -1,4 +1,4 @@
-import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import {
   BookingListSchema,
   BookingJourneyResponseSchema,
@@ -24,17 +24,6 @@ export class BookingsService {
     }
 
     return BookingListSchema.parse(await res.json());
-  }
-
-  async findOne(id: string): Promise<Booking> {
-    const bookings = await this.findAll();
-    const booking = bookings.find((item) => item.id === id);
-
-    if (!booking) {
-      throw new NotFoundException({ message: 'Reservation not found' });
-    }
-
-    return booking;
   }
 
   async create(input: CreateBooking): Promise<BookingJourneyResponse> {

@@ -2,22 +2,6 @@ import { z } from 'zod';
 import { BookingStatusSchema } from '../bookings/booking.schema.js';
 import { JourneyTargetSchema } from '../journeys/journey.schema.js';
 
-export const ReservationCapabilitySchema = z.object({
-  name: z.string().min(1),
-  method: z.enum(['GET', 'POST']),
-  href: z.string().min(1).startsWith('/'),
-});
-export type ReservationCapability = z.infer<
-  typeof ReservationCapabilitySchema
->;
-
-export const ReservationSummarySchema = z.object({
-  domain: z.literal('reservation'),
-  description: z.string().min(1),
-  capabilities: z.array(ReservationCapabilitySchema).min(1),
-});
-export type ReservationSummary = z.infer<typeof ReservationSummarySchema>;
-
 export const ReservationPaymentStateSchema = z.enum([
   'not_started',
   'authorized',

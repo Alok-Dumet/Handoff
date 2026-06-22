@@ -11,7 +11,7 @@ export default function BrandSwitcher({
   navigation: AemNavigationItem[];
 }) {
   return (
-    <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", mb: 3 }}>
+    <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
       {navigation.map((item) => {
         const isActive = item.href.endsWith(`/${activeBrand.id}`);
 

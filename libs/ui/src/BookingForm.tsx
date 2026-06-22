@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import type { CreateBooking } from "@handoff/contracts";
@@ -53,7 +54,17 @@ export function BookingForm({
           fullWidth
         />
       </Stack>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "minmax(0, 1fr) minmax(0, 1fr) auto",
+          },
+          gap: 1,
+          alignItems: "stretch",
+        }}
+      >
         <TextField
           name="startDate"
           label="Start"
@@ -76,11 +87,11 @@ export function BookingForm({
           type="submit"
           variant="contained"
           disabled={isSubmitting}
-          sx={{ minWidth: 112 }}
+          sx={{ minWidth: 128 }}
         >
           {isSubmitting ? "Reserving" : "Reserve"}
         </Button>
-      </Stack>
+      </Box>
     </Stack>
   );
 }

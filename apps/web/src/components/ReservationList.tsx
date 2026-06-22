@@ -3,10 +3,8 @@
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemText from "@mui/material/ListItemText";
+import Paper from "@mui/material/Paper";
+import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useReservations } from "../hooks/useReservations";
@@ -22,7 +20,13 @@ export default function ReservationList() {
   const reservations = query.data ?? [];
 
   if (query.isLoading) {
-    return <CircularProgress size={24} />;
+    return (
+      <Stack spacing={1.5}>
+        {[0, 1, 2].map((item) => (
+          <Skeleton key={item} variant="rounded" height={112} />
+        ))}
+      </Stack>
+    );
   }
 
   if (query.isError) {
@@ -42,25 +46,24 @@ export default function ReservationList() {
   }
 
   return (
-    <List disablePadding>
+    <Stack spacing={1.5}>
       {reservations.map((reservation) => (
-        <ListItem
+        <Paper
           key={reservation.id}
-          divider
-          disableGutters
-          secondaryAction={
-            <Button href={reservation.detailHref} size="small" variant="outlined">
-              {reservation.nextActionLabel}
-            </Button>
-          }
-          sx={{ pr: { xs: 12, sm: 16 } }}
+          variant="outlined"
+          sx={{
+            p: { xs: 2, sm: 2.5 },
+            borderRadius: 4,
+            bgcolor: "rgba(255,255,255,0.78)",
+          }}
         >
-          <ListItemText
-            primary={
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            sx={{ justifyContent: "space-between", alignItems: { md: "center" } }}
+          >
+            <Stack spacing={1}>
               <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-                <Typography component="span" sx={{ fontWeight: 600 }}>
-                  {reservation.customerName}
-                </Typography>
                 <Chip
                   color={statusColor[reservation.status]}
                   label={reservation.status}
@@ -72,11 +75,25 @@ export default function ReservationList() {
                   variant="outlined"
                 />
               </Stack>
-            }
-            secondary={`${reservation.vehicleId} | ${reservation.startDate} to ${reservation.endDate} | ${reservation.customerEmail}`}
-          />
-        </ListItem>
+              <Typography variant="h6" component="h2">
+                {reservation.customerName}
+              </Typography>
+              <Typography color="text.secondary">
+                {reservation.vehicleId} | {reservation.startDate} to{" "}
+                {reservation.endDate} | {reservation.customerEmail}
+              </Typography>
+            </Stack>
+            <Button
+              href={reservation.detailHref}
+              size="small"
+              variant="outlined"
+              sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+            >
+              {reservation.nextActionLabel}
+            </Button>
+          </Stack>
+        </Paper>
       ))}
-    </List>
+    </Stack>
   );
 }
