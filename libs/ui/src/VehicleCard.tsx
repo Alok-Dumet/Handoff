@@ -1,10 +1,10 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 import type { VehicleSummary } from "@handoff/contracts";
 
 export type VehicleCardProps = {
@@ -12,76 +12,139 @@ export type VehicleCardProps = {
   actions?: ReactNode;
 };
 
+/**
+ * Dark-theme vehicle card. The header is an intentional abstract treatment
+ * (gradient + large class watermark) rather than a placeholder photo blob,
+ * so it reads as designed rather than as a missing image.
+ */
 export function VehicleCard({ vehicle, actions }: VehicleCardProps) {
   return (
-    <Card
-      variant="outlined"
-      sx={{
+    <Box
+      sx={(theme) => ({
+        position: "relative",
         height: "100%",
+        display: "flex",
+        flexDirection: "column",
         overflow: "hidden",
-        transition: "transform 220ms ease, box-shadow 220ms ease",
+        borderRadius: 4,
+        border: "1px solid",
+        borderColor: alpha("#f4f7f3", 0.12),
+        backgroundColor: alpha("#101821", 0.85),
+        backgroundImage:
+          "linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.015))",
+        boxShadow: `0 22px 60px ${alpha("#000000", 0.32)}`,
+        transition:
+          "transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease",
         "&:hover": {
           transform: "translateY(-4px)",
-          boxShadow: "0 28px 90px rgba(31, 42, 31, 0.14)",
+          borderColor: alpha(theme.palette.primary.main, 0.4),
+          boxShadow: `0 30px 80px ${alpha("#000000", 0.45)}`,
         },
-      }}
+      })}
     >
+      {/* Header band: gradient wash + large class watermark */}
       <Box
-        sx={{
+        sx={(theme) => ({
           position: "relative",
-          height: 148,
+          height: 112,
           overflow: "hidden",
-          background:
-            "radial-gradient(circle at 78% 22%, rgba(255,255,255,0.46), transparent 7rem), linear-gradient(135deg, rgba(143,215,255,0.92), rgba(125,220,199,0.72))",
-          "&::after": {
-            content: '""',
+          display: "flex",
+          alignItems: "center",
+          px: 2.5,
+          background: `linear-gradient(135deg, ${alpha(
+            theme.palette.primary.main,
+            0.3,
+          )}, ${alpha(theme.palette.secondary.main, 0.12)})`,
+          borderBottom: "1px solid",
+          borderColor: alpha("#f4f7f3", 0.08),
+        })}
+      >
+        <Typography
+          aria-hidden
+          sx={{
             position: "absolute",
-            inset: "-30%",
-            background:
-              "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.42), transparent 8rem)",
-          },
-        }}
-      />
-      <CardContent sx={{ p: { xs: 2.25, sm: 2.75 } }}>
+            right: 0,
+            bottom: -16,
+            fontSize: "4.25rem",
+            fontWeight: 900,
+            letterSpacing: "-0.05em",
+            lineHeight: 1,
+            textTransform: "uppercase",
+            color: alpha("#f4f7f3", 0.08),
+            userSelect: "none",
+            pointerEvents: "none",
+          }}
+        >
+          {vehicle.class}
+        </Typography>
+        <Typography
+          variant="overline"
+          sx={{
+            position: "relative",
+            fontWeight: 800,
+            letterSpacing: "0.14em",
+            color: "primary.main",
+          }}
+        >
+          {vehicle.class}
+        </Typography>
+      </Box>
+
+      <Stack spacing={2} sx={{ p: 2.5, flex: 1 }}>
         <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
+          direction="row"
+          spacing={1.5}
           sx={{ justifyContent: "space-between", alignItems: "flex-start" }}
         >
-          <Stack spacing={1}>
-            <Typography variant="h6" component="h2">
-              {vehicle.title}
-            </Typography>
-            <Stack
-              direction="row"
-              spacing={1}
-              useFlexGap
-              sx={{ flexWrap: "wrap" }}
-            >
-              <Chip label={vehicle.class} size="small" />
-              <Chip
-                label={vehicle.transmission}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                label={`${vehicle.seats} seats`}
-                size="small"
-                variant="outlined"
-              />
-            </Stack>
-          </Stack>
+          <Typography variant="h6" component="h2" sx={{ minWidth: 0 }}>
+            {vehicle.title}
+          </Typography>
           <Typography
-            variant="h5"
+            variant="h6"
             component="p"
             color="primary"
-            sx={{ whiteSpace: "nowrap" }}
+            sx={{ whiteSpace: "nowrap", flexShrink: 0, lineHeight: 1.3 }}
           >
             {vehicle.priceLabel}
           </Typography>
         </Stack>
-        {actions}
-      </CardContent>
-    </Card>
+
+        <Stack direction="row" spacing={3} sx={{ color: "text.secondary" }}>
+          <SpecItem label="Transmission" value={vehicle.transmission} />
+          <SpecItem label="Seats" value={`${vehicle.seats}`} />
+        </Stack>
+
+        {actions ? <Box sx={{ mt: "auto", pt: 0.5 }}>{actions}</Box> : null}
+      </Stack>
+    </Box>
+  );
+}
+
+function SpecItem({ label, value }: { label: string; value: string }) {
+  return (
+    <Stack spacing={0.25}>
+      <Typography
+        sx={{
+          fontSize: "0.65rem",
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "text.secondary",
+          opacity: 0.7,
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: "0.9rem",
+          fontWeight: 600,
+          color: "text.primary",
+          textTransform: "capitalize",
+        }}
+      >
+        {value}
+      </Typography>
+    </Stack>
   );
 }

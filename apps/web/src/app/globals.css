@@ -1,71 +1,23 @@
-html,
-body {
-  height: 100%;
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
 }
 
 body {
-  margin: 0;
-  background:
-    radial-gradient(circle at 8% 0%, rgb(88 166 255 / 0.2), transparent 32rem),
-    radial-gradient(circle at 95% 10%, rgb(56 189 161 / 0.14), transparent 28rem),
-    linear-gradient(180deg, #0d131a 0%, #090d12 42%, #070a0f 100%);
-  color: #f4f7f3;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-@keyframes handoff-rise {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes handoff-drift {
-  0% {
-    transform: translate3d(-2%, -1%, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(2%, 1.5%, 0) scale(1.04);
-  }
-  100% {
-    transform: translate3d(-2%, -1%, 0) scale(1);
-  }
-}
-
-@keyframes handoff-sheen {
-  0% {
-    transform: translateX(-120%) rotate(12deg);
-  }
-  100% {
-    transform: translateX(140%) rotate(12deg);
-  }
-}
-
-@keyframes handoff-panel-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-  }
+  background: var(--background);
+  color: var(--foreground);
 }

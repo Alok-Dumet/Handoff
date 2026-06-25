@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
-import "@fontsource/roboto/400.css";
-import "@fontsource/roboto/500.css";
-import "@fontsource/roboto/700.css";
 import { ClerkProvider } from "@clerk/nextjs";
-import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
-import AppShell from "../components/AppShell";
-import Providers from "../providers";
+import { dark } from "@clerk/themes";
+import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "HandOff",
-  description:
-    "Car rental platform for vehicle search, booking, and post-confirmation customer journeys",
+  description: "Car rental platform",
 };
 
 export default function RootLayout({
@@ -19,14 +16,40 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      appearance={{
+        theme:dark,
+        elements: {
+          cardBox: {
+            border: "2px solid rgb(255, 255, 255)",
+            borderRadius: "0.5rem",
+            // boxShadow: "0 0 100px 2px rgb(255, 255, 255)",
+          },
+          headerTitle: "text-xl font-semibold tracking-tight",
+        },
+      }}
+      localization={{
+        signIn: {
+          start: {
+            title: "Sign in to HandOff",
+            subtitle: "Welcome back — pick up where you left off.",
+          },
+        },
+        signUp: {
+          start: {
+            title: "Create your HandOff account",
+            subtitle: "Get on the road in minutes.",
+          },
+        },
+      }}
+    >
       <html lang="en">
         <body>
-          <AppRouterCacheProvider>
-            <Providers>
-              <AppShell>{children}</AppShell>
-            </Providers>
-          </AppRouterCacheProvider>
+          <div className="flex min-h-dvh flex-col bg-black">
+            <SiteHeader />
+            <main className="flex flex-1 flex-col">{children}</main>
+            <SiteFooter />
+          </div>
         </body>
       </html>
     </ClerkProvider>

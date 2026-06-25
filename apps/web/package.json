@@ -6,46 +6,27 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run --project unit",
-    "lint": "eslint",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "lint": "eslint"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.5.7",
-    "@emotion/cache": "^11.14.0",
+    "@clerk/nextjs": "^7.5.8",
+    "@clerk/themes": "^2.4.57",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
-    "@fontsource/roboto": "^5.2.10",
-    "@handoff/contracts": "workspace:*",
-    "@handoff/ui": "workspace:*",
     "@mui/material": "^9.1.1",
     "@mui/material-nextjs": "^9.1.1",
-    "@tanstack/react-query": "^5.101.0",
-    "@tanstack/react-query-devtools": "^5.101.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@chromatic-com/storybook": "^5.2.1",
-    "@storybook/addon-a11y": "^10.4.6",
-    "@storybook/addon-docs": "^10.4.6",
-    "@storybook/addon-mcp": "^0.6.0",
-    "@storybook/addon-vitest": "^10.4.6",
-    "@storybook/nextjs-vite": "^10.4.6",
+    "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitest/browser-playwright": "^4.1.9",
-    "@vitest/coverage-v8": "^4.1.9",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
-    "eslint-plugin-storybook": "^10.4.6",
-    "playwright": "^1.61.0",
-    "storybook": "^10.4.6",
-    "typescript": "^5",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.9"
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5"
   }
 }
