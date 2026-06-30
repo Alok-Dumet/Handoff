@@ -1,0 +1,82 @@
+import {
+  type GeocodeResult,
+  type VehicleDetail,
+  type VehicleFilter,
+  type VehicleSummary,
+  GeocodeResultListSchema,
+  VehicleDetailSchema,
+  VehicleSummaryListSchema,
+} from "@handoff/contracts";
+
+// Server-side fetches (Server Components) use the internal BFF URL.
+const BFF_URL = process.env.BFF_URL ?? "http://localhost:3001";
+// Browser fetches (autocomplete typeahead) need a publicly reachable URL.
+const PUBLIC_BFF_URL =
+  process.env.NEXT_PUBLIC_BFF_URL ?? "http://localhost:3001";
+
+/** Turn a VehicleFilter into BFF query params (omitting empty fields). */
+function filterToParams(filter: VehicleFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  filter.classes?.forEach((c) => params.append("classes", c));
+  if (filter.transmission) params.set("transmission", filter.transmission);
+  if (filter.minSeats !== undefined)
+    params.set("minSeats", String(filter.minSeats));
+  if (filter.minPricePerDay !== undefined)
+    params.set("minPricePerDay", String(filter.minPricePerDay));
+  if (filter.maxPricePerDay !== undefined)
+    params.set("maxPricePerDay", String(filter.maxPricePerDay));
+  if (filter.lat !== undefined) params.set("lat", String(filter.lat));
+  if (filter.lng !== undefined) params.set("lng", String(filter.lng));
+  if (filter.sort) params.set("sort", filter.sort);
+  return params;
+}
+
+/**
+ * Fetch the display-ready vehicle list from the BFF, applying the given
+ * filter. Validated against the shared contract so a drifting upstream fails
+ * here rather than rendering bad data. `no-store` keeps results live.
+ */
+export async function getVehicles(
+  filter: VehicleFilter = {},
+): Promise<VehicleSummary[]> {
+  const qs = filterToParams(filter).toString();
+  const res = await fetch(`${BFF_URL}/vehicles${qs ? `?${qs}` : ""}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`BFF responded ${res.status}`);
+  }
+  return VehicleSummaryListSchema.parse(await res.json());
+}
+
+/**
+ * Fetch a single vehicle's detail shape from the BFF. Returns null on 404 so
+ * the page can render Next's notFound(); other non-OK responses throw.
+ * Validated against the shared contract, same as the list fetch.
+ */
+export async function getVehicle(id: string): Promise<VehicleDetail | null> {
+  const res = await fetch(`${BFF_URL}/vehicles/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(`BFF responded ${res.status}`);
+  }
+  return VehicleDetailSchema.parse(await res.json());
+}
+
+/**
+ * Geocode a free-text US place via the BFF (which proxies Nominatim).
+ * Called from the browser as the user types in the location Autocomplete.
+ */
+export async function geocode(query: string): Promise<GeocodeResult[]> {
+  const res = await fetch(
+    `${PUBLIC_BFF_URL}/geocode?q=${encodeURIComponent(query)}`,
+  );
+  if (!res.ok) {
+    return [];
+  }
+  return GeocodeResultListSchema.parse(await res.json());
+}

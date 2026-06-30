@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, UserButton } from "@clerk/nextjs";
 
 export default function SiteHeader() {
   const { isSignedIn } = useAuth();
@@ -9,7 +9,7 @@ export default function SiteHeader() {
   const logoHref = isSignedIn ? "/vehicles" : "/";
 
   return (
-    <header className="absolute inset-x-0 top-0 z-20">
+    <header className="absolute inset-x-0 top-0 z-20 border-b border-red">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
         <Link
           href={logoHref}
@@ -22,18 +22,37 @@ export default function SiteHeader() {
         </Link>
 
         <div className="flex items-center gap-2">
-          <Link
-            href="/sign-in"
-            className="rounded-full px-4 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/sign-up"
-            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90"
-          >
-            Sign up
-          </Link>
+          {isSignedIn ? (
+            <UserButton
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: {
+                    backgroundImage: "url('/Icon.png')",
+                    backgroundSize: "cover",
+                    backgroundColor: "black",
+                    width: "2rem",
+                    height: "2rem"
+                  },
+                  userButtonAvatarImage: { display: "none" },
+                },
+              }}
+            />
+          ) : (
+            <>
+              <Link
+                href="/sign-in"
+                className="rounded-full px-4 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/sign-up"
+                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
         </div>
       </nav>
     </header>

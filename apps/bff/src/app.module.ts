@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { VehiclesModule } from './vehicles/vehicles.module';
+import { GeocodeModule } from './geocode/geocode.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { JourneysModule } from './journeys/journeys.module';
 import { AuthModule } from './auth/auth.module';
@@ -12,6 +13,7 @@ import { PaymentsModule } from './payments/payments.module';
 @Module({
   imports: [
     VehiclesModule,
+    GeocodeModule,
     BookingsModule,
     JourneysModule,
     AuthModule,

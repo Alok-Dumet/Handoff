@@ -29,17 +29,32 @@ enum BookingStatus {
   cancelled
 }
 
-model Vehicle {
-  id           String       @id
-  make         String
-  model        String
-  year         Int
-  class        VehicleClass
-  transmission Transmission
-  seats        Int
-  pricePerDay  Int
-  bookings     Booking[]
+model Location {
+  id        String    @id
+  name      String
+  address   String
+  latitude  Float
+  longitude Float
+  vehicles  Vehicle[]
 
+  @@map("locations")
+}
+
+model Vehicle {
+  id              String       @id
+  make            String
+  model           String
+  year            Int
+  class           VehicleClass
+  transmission    Transmission
+  seats           Int
+  pricePerDay     Int
+  salePricePerDay Int?
+  locationId      String
+  location        Location     @relation(fields: [locationId], references: [id])
+  bookings        Booking[]
+
+  @@index([locationId])
   @@map("vehicles")
 }
 
