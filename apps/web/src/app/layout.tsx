@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
-import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
@@ -46,13 +45,11 @@ export default function RootLayout({
     >
       <html lang="en">
         <body>
-          <AppRouterCacheProvider>
-            <div className="flex min-h-dvh flex-col bg-black">
-              <SiteHeader />
-              <main className="flex flex-1 flex-col">{children}</main>
-              <SiteFooter />
-            </div>
-          </AppRouterCacheProvider>
+          <div className="flex min-h-dvh flex-col bg-black">
+            <SiteHeader />
+            <main className="flex flex-1 flex-col">{children}</main>
+            <SiteFooter />
+          </div>
         </body>
       </html>
     </ClerkProvider>

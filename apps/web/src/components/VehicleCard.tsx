@@ -5,9 +5,8 @@ import { CLASS_IMAGE } from "@/lib/vehicle-images";
 
 export default function VehicleCard({ vehicle }: { vehicle: VehicleSummary }) {
   return (
-    <Link
-      href={`/vehicles/${vehicle.id}`}
-      className="block overflow-hidden rounded-xl border border-white/10 bg-white/5 transition-colors hover:border-white/25"
+    <div
+      className="flex flex-col block overflow-hidden rounded-xl border border-white/10 bg-white/5 transition-colors hover:border-white/25 gap-4"
     >
       <div className="relative aspect-[4/3] bg-black/40">
         <Image
@@ -15,14 +14,14 @@ export default function VehicleCard({ vehicle }: { vehicle: VehicleSummary }) {
           alt={vehicle.title}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-contain p-6"
+          className="object-contain p-6 pb-0"
         />
         <span className="absolute left-3 top-3 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-white/80 backdrop-blur">
           {vehicle.class}
         </span>
       </div>
 
-      <div className="flex flex-col gap-3 p-5">
+      <div className="flex flex-col gap-3 p-5 pt-0">
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold tracking-tight text-white">
             {vehicle.title}
@@ -64,7 +63,13 @@ export default function VehicleCard({ vehicle }: { vehicle: VehicleSummary }) {
             </dd>
           </div>
         </dl>
+        <Link
+          href={`/vehicles/${vehicle.id}`}
+          className="block overflow-hidden rounded-xl border border-white/50 bg-red-500/40 transition-colors hover:border-white/100 text-centerRemove"
+        >
+          Check Out
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }
