@@ -117,8 +117,8 @@ export type VehicleDetail = z.infer<typeof VehicleDetailSchema>;
 
 /**
  * GeocodeResult — a place suggestion for the "near me" location search.
- * The BFF proxies a geocoding provider (Nominatim) and reshapes its hits
- * into this minimal, display-ready shape for the Autocomplete.
+ * The BFF serves these from a curated local list of pick-up anchors, in this
+ * minimal, display-ready shape for the Autocomplete.
  */
 export const GeocodeResultSchema = z.object({
   label: z.string(),

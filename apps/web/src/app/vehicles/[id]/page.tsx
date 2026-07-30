@@ -117,6 +117,23 @@ export default async function VehicleDetailPage({
                 <p className="text-sm text-white/60">{DROPOFF_WHEN.time}</p>
               </div>
             </div>
+
+            {/* Features — display only, not filterable on /vehicles */}
+            <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-white/40">
+                Features
+              </h2>
+              <ul className="mt-3 grid gap-2 text-sm text-white/70 sm:grid-cols-2">
+                {CLASS_FEATURES[vehicle.class].map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <span aria-hidden className="mt-0.5 text-white/30">
+                      •
+                    </span>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           {/* Right: booking summary (sticky on large screens) */}

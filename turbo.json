@@ -13,7 +13,6 @@
       "cache": false,
       "persistent": true
     },
-    "lint": {},
-    "test": {}
+    "lint": {}
   }
 }

@@ -137,23 +137,28 @@ function LocationAutocomplete({
 }) {
   const [input, setInput] = useState("");
   const [options, setOptions] = useState<GeocodeResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // The query the current `options` correspond to. Comparing it against the
+  // live debounced query is what tells us a lookup is still outstanding.
+  const [settledQuery, setSettledQuery] = useState("");
 
   const debouncedInput = useDebounced(input, 400);
   const reqId = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // All three of these are derived, not stored: a query under 3 chars has no
+  // suggestions by definition, and a query we haven't settled yet is in flight.
+  // Deriving avoids setState in the effect body, which would cascade renders.
+  const tooShort = debouncedInput.trim().length < 3;
+  const visibleOptions = tooShort ? [] : options;
+  const listOpen = open && !tooShort;
+  const loading = !tooShort && settledQuery !== debouncedInput;
+
   useEffect(() => {
-    if (debouncedInput.trim().length < 3) {
-      setOptions([]);
-      setOpen(false);
-      return;
-    }
+    if (tooShort) return;
     const id = ++reqId.current;
-    setLoading(true);
     geocode(debouncedInput)
       .then((res) => {
         if (id !== reqId.current) return;
@@ -162,9 +167,9 @@ function LocationAutocomplete({
         setActiveIndex(-1);
       })
       .finally(() => {
-        if (id === reqId.current) setLoading(false);
+        if (id === reqId.current) setSettledQuery(debouncedInput);
       });
-  }, [debouncedInput]);
+  }, [debouncedInput, tooShort]);
 
   // Close on outside click
   useEffect(() => {
@@ -185,16 +190,16 @@ function LocationAutocomplete({
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (!open) return;
+    if (!listOpen) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, options.length - 1));
+      setActiveIndex((i) => Math.min(i + 1, visibleOptions.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter" && activeIndex >= 0) {
       e.preventDefault();
-      select(options[activeIndex]);
+      select(visibleOptions[activeIndex]);
     } else if (e.key === "Escape") {
       setOpen(false);
     }
@@ -209,7 +214,7 @@ function LocationAutocomplete({
           ref={inputRef}
           type="text"
           role="combobox"
-          aria-expanded={open}
+          aria-expanded={listOpen}
           aria-autocomplete="list"
           aria-controls={listId}
           aria-activedescendant={
@@ -217,7 +222,7 @@ function LocationAutocomplete({
           }
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onFocus={() => options.length > 0 && setOpen(true)}
+          onFocus={() => visibleOptions.length > 0 && setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder="Search a US location"
           className="w-full rounded-md border border-white/20 bg-transparent px-3 py-1.5 pr-8 text-sm text-white placeholder:text-white/30 focus:border-white/50 focus:outline-none"
@@ -233,6 +238,8 @@ function LocationAutocomplete({
               setInput("");
               setOptions([]);
               setOpen(false);
+              // Reset so retyping the same query still shows the spinner.
+              setSettledQuery("");
               inputRef.current?.focus();
             }}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70"
@@ -243,16 +250,16 @@ function LocationAutocomplete({
         )}
       </div>
 
-      {open && (
+      {listOpen && (
         <ul
           id={listId}
           role="listbox"
           className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-white/15 bg-zinc-900 py-1 shadow-xl"
         >
-          {options.length === 0 ? (
+          {visibleOptions.length === 0 ? (
             <li className="px-3 py-2 text-sm text-white/40">No places found</li>
           ) : (
-            options.map((o, i) => (
+            visibleOptions.map((o, i) => (
               <li
                 key={`${o.latitude},${o.longitude}`}
                 id={`loc-opt-${i}`}
@@ -324,10 +331,19 @@ export default function VehicleFilters() {
     );
   };
 
+  // The slider keeps local state while dragging, then commits to the URL. When
+  // the URL range changes from elsewhere (e.g. "Clear all filters"), re-sync by
+  // adjusting state during render rather than in an effect, which would cascade
+  // an extra render pass. See https://react.dev/reference/react/useState#storing-information-from-previous-renders
   const [price, setPrice] = useState<[number, number]>([priceLow, priceHigh]);
-  useEffect(() => {
+  const [syncedRange, setSyncedRange] = useState<[number, number]>([
+    priceLow,
+    priceHigh,
+  ]);
+  if (syncedRange[0] !== priceLow || syncedRange[1] !== priceHigh) {
+    setSyncedRange([priceLow, priceHigh]);
     setPrice([priceLow, priceHigh]);
-  }, [priceLow, priceHigh]);
+  }
 
   const hasAnchor = searchParams.has("lat");
   const anyActive = useMemo(

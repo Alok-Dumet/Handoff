@@ -32,6 +32,8 @@ apps/services/refdata/src/generated/
 .vercel/
 
 # local project notes
+.agents
+.claude
 ai/
 comms.md
 copy.md

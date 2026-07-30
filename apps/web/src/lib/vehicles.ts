@@ -68,8 +68,9 @@ export async function getVehicle(id: string): Promise<VehicleDetail | null> {
 }
 
 /**
- * Geocode a free-text US place via the BFF (which proxies Nominatim).
- * Called from the browser as the user types in the location Autocomplete.
+ * Look up a US pick-up place via the BFF, which matches against a curated
+ * local list. Called from the browser as the user types in the location
+ * Autocomplete.
  */
 export async function geocode(query: string): Promise<GeocodeResult[]> {
   const res = await fetch(

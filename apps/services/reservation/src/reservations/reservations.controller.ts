@@ -5,15 +5,15 @@ import {
   Get,
   Param,
   Put,
-} from "@nestjs/common";
+} from '@nestjs/common';
 import {
   type ReservationDetail,
   type ReservationListItem,
   UpdateReservationPaymentStateSchema,
-} from "@handoff/contracts";
-import { ReservationsService } from "./reservations.service";
+} from '@handoff/contracts';
+import { ReservationsService } from './reservations.service';
 
-@Controller("reservations")
+@Controller('reservations')
 export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
@@ -22,14 +22,14 @@ export class ReservationsController {
     return this.reservationsService.findAll();
   }
 
-  @Get(":id")
-  findOne(@Param("id") id: string): Promise<ReservationDetail> {
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<ReservationDetail> {
     return this.reservationsService.findOne(id);
   }
 
-  @Put(":id/payment-state")
+  @Put(':id/payment-state')
   updatePaymentState(
-    @Param("id") id: string,
+    @Param('id') id: string,
     @Body() body: unknown,
   ): Promise<ReservationDetail> {
     const result = UpdateReservationPaymentStateSchema.safeParse(body);

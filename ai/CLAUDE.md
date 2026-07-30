@@ -74,3 +74,11 @@ Start all of your terminal responses with "BlueBird:"
 - Only read files relevant to the current task or issue
 - Read `CLAUDE.md` once at the start of a session — do not re-read it mid-session
 - Compact automatically if context is over 50%
+- **Check `zdocs/` before reading source.** It documents the layout, ports, endpoints,
+  contracts, and known issues. For questions about how the project is structured,
+  answer from `zdocs/` — read source only to verify a specific claim you doubt
+- **Never modify a file to answer a question.** No moving, renaming, or deleting to
+  observe what breaks. Questions are answered by reading; only tasks change files
+- **Scale investigation to the cost of being wrong.** For explanations and orientation,
+  answer from what is already known and let the user correct it. Reserve heavy
+  verification for claims that something is built, working, or safe to rely on

@@ -1,4 +1,4 @@
-import { HttpException, Injectable, NotFoundException } from "@nestjs/common";
+import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   BookingListSchema,
   BookingSchema,
@@ -9,12 +9,12 @@ import {
   type ReservationListItem,
   type ReservationPaymentState,
   type UpdateReservationPaymentState,
-} from "@handoff/contracts";
+} from '@handoff/contracts';
 
 @Injectable()
 export class ReservationsService {
   private readonly refdataUrl =
-    process.env.REFDATA_URL ?? "http://localhost:3002";
+    process.env.REFDATA_URL ?? 'http://localhost:3002';
   private readonly paymentStates = new Map<string, ReservationPaymentState>();
 
   async findAll(): Promise<ReservationListItem[]> {
@@ -60,7 +60,7 @@ export class ReservationsService {
 
     if (!res.ok) {
       if (res.status === 404) {
-        throw new NotFoundException({ message: "Reservation not found" });
+        throw new NotFoundException({ message: 'Reservation not found' });
       }
 
       throw await toUpstreamException(res);
@@ -70,7 +70,7 @@ export class ReservationsService {
   }
 
   private getPaymentState(id: string): ReservationPaymentState {
-    return this.paymentStates.get(id) ?? "not_started";
+    return this.paymentStates.get(id) ?? 'not_started';
   }
 }
 
@@ -91,12 +91,12 @@ function toDetail(
 }
 
 const defaultNextJourney = {
-  type: "pre-check-in",
-  label: "Pre-check-in",
-  path: "/journeys/pre-check-in",
-  ctaLabel: "Start check-in",
+  type: 'pre-check-in',
+  label: 'Pre-check-in',
+  path: '/journeys/pre-check-in',
+  ctaLabel: 'Start check-in',
   description:
-    "Confirm driver, contact, and pickup details before arriving at the branch.",
+    'Confirm driver, contact, and pickup details before arriving at the branch.',
 } as const;
 
 function toListItem(
@@ -124,7 +124,7 @@ async function toUpstreamException(res: Response): Promise<HttpException> {
   try {
     const jsonBody: unknown = await res.json();
     body =
-      typeof jsonBody === "object" && jsonBody !== null
+      typeof jsonBody === 'object' && jsonBody !== null
         ? (jsonBody as Record<string, unknown>)
         : String(jsonBody);
   } catch {
