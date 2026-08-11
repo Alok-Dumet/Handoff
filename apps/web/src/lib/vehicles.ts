@@ -1,11 +1,14 @@
 import {
   type GeocodeResult,
   type Location,
+  type Quote,
+  type QuoteRequest,
   type VehicleDetail,
   type VehicleFilter,
   type VehicleSummary,
   GeocodeResultListSchema,
   LocationListSchema,
+  QuoteSchema,
   VehicleDetailSchema,
   VehicleSummaryListSchema,
 } from "@handoff/contracts";
@@ -82,6 +85,37 @@ export async function getLocations(): Promise<Location[]> {
     throw new Error(`BFF responded ${res.status}`);
   }
   return LocationListSchema.parse(await res.json());
+}
+
+/**
+ * Ask the BFF to price a rental. The BFF owns this arithmetic — we render
+ * what it returns and never compute a total here, so what the customer sees
+ * is what the server would charge.
+ *
+ * Returns null when the window is rejected (400), which the page shows as an
+ * un-priced summary rather than an error screen; the user is mid-form.
+ */
+export async function getQuote(request: QuoteRequest): Promise<Quote | null> {
+  const params = new URLSearchParams({
+    vehicleId: request.vehicleId,
+    pickupAt: request.pickupAt,
+    dropoffAt: request.dropoffAt,
+  });
+  request.addOnIds.forEach((id) => params.append("addOnIds", id));
+  if (request.protectionPlanId) {
+    params.set("protectionPlanId", request.protectionPlanId);
+  }
+
+  const res = await fetch(`${BFF_URL}/quote?${params.toString()}`, {
+    cache: "no-store",
+  });
+  if (res.status === 400 || res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(`BFF responded ${res.status}`);
+  }
+  return QuoteSchema.parse(await res.json());
 }
 
 /**

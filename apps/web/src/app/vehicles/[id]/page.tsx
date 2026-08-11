@@ -1,12 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLocations, getVehicle } from "@/lib/vehicles";
+import { getLocations, getQuote, getVehicle } from "@/lib/vehicles";
 import { CLASS_IMAGE } from "@/lib/vehicle-images";
 import { CLASS_FEATURES } from "@/lib/vehicle-features";
 import RentalWindowPicker from "@/components/RentalWindowPicker";
 
-const LINE_ITEMS = [
+// Shown before a rental window is chosen, so the summary keeps its shape
+// instead of collapsing to nothing.
+const PLACEHOLDER_LINES = [
   "Vehicle Total Rate",
   "Protection Plan",
   "Add-Ons",
@@ -15,10 +17,12 @@ const LINE_ITEMS = [
 
 export default async function VehicleDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const [vehicle, locations] = await Promise.all([
     getVehicle(id),
     getLocations(),
@@ -27,6 +31,21 @@ export default async function VehicleDetailPage({
   if (!vehicle) {
     notFound();
   }
+
+  // Price only once both ends of the window are present. The BFF re-validates
+  // and returns null for an illegal window, so a half-filled form or a
+  // hand-edited URL shows an un-priced summary rather than an error.
+  const pickupAt = typeof query.pickupAt === "string" ? query.pickupAt : "";
+  const dropoffAt = typeof query.dropoffAt === "string" ? query.dropoffAt : "";
+  const quote =
+    pickupAt && dropoffAt
+      ? await getQuote({
+          vehicleId: vehicle.id,
+          pickupAt,
+          dropoffAt,
+          addOnIds: [],
+        })
+      : null;
 
   return (
     <div className="flex flex-1 flex-col px-6 pb-16 pt-28">
@@ -123,18 +142,45 @@ export default async function VehicleDetailPage({
               </h2>
 
               <dl className="flex flex-col gap-3 text-sm">
-                {LINE_ITEMS.map((label) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between"
-                  >
-                    <dt className="text-white/60">{label}</dt>
-                    <dd className="text-white/40">—</dd>
-                  </div>
-                ))}
+                {quote
+                  ? quote.lines.map((line) => (
+                      <div
+                        key={line.key}
+                        className="flex items-start justify-between gap-4"
+                      >
+                        <dt className="text-white/60">
+                          {line.label}
+                          {line.detail && (
+                            <span className="block text-xs text-white/35">
+                              {line.detail}
+                            </span>
+                          )}
+                        </dt>
+                        <dd className="whitespace-nowrap text-white/80">
+                          {line.amountLabel}
+                        </dd>
+                      </div>
+                    ))
+                  : PLACEHOLDER_LINES.map((label) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between"
+                      >
+                        <dt className="text-white/60">{label}</dt>
+                        <dd className="text-white/40">—</dd>
+                      </div>
+                    ))}
                 <div className="mt-1 flex items-center justify-between border-t border-white/10 pt-3">
                   <dt className="font-semibold text-white">Total</dt>
-                  <dd className="font-semibold text-white/40">—</dd>
+                  <dd
+                    className={
+                      quote
+                        ? "font-semibold text-white"
+                        : "font-semibold text-white/40"
+                    }
+                  >
+                    {quote ? quote.totalLabel : "—"}
+                  </dd>
                 </div>
               </dl>
 
