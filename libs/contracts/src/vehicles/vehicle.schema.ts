@@ -112,6 +112,9 @@ export const VehicleDetailSchema = z.object({
   originalPriceLabel: z.string().optional(),
   pickupLocation: z.string(),
   pickupAddress: z.string(),
+  // The branch's id, so the purchase page can default the pick-up/drop-off
+  // pickers to where the vehicle actually sits.
+  pickupLocationId: z.string(),
 });
 export type VehicleDetail = z.infer<typeof VehicleDetailSchema>;
 

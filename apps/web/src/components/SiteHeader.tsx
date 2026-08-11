@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image"
 import { useAuth, UserButton } from "@clerk/nextjs";
 
 export default function SiteHeader() {
@@ -23,20 +24,19 @@ export default function SiteHeader() {
 
         <div className="flex items-center gap-2">
           {isSignedIn ? (
-            <UserButton
-              appearance={{
-                elements: {
-                  userButtonAvatarBox: {
-                    backgroundImage: "url('/Icon.png')",
-                    backgroundSize: "cover",
-                    backgroundColor: "black",
-                    width: "2rem",
-                    height: "2rem"
-                  },
-                  userButtonAvatarImage: { display: "none" },
-                },
-              }}
-            />
+            <div className="group relative h-8 w-8 rounded-full transition duration-300 hover:shadow-[0_0_12px_4px_rgba(255,255,255,0.7)]">
+              <div className="absolute inset-0 opacity-0" id="buttonWrapper">
+                <UserButton />
+              </div>
+
+              <Image
+                src="/Icon.png"
+                alt="User Profile"
+                fill
+                className="pointer-events-none rounded-full object-cover"
+                id="image"
+              />
+            </div>
           ) : (
             <>
               <Link

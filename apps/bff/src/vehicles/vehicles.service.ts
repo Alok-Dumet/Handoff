@@ -148,6 +148,7 @@ export class VehiclesService {
       ...priceLabels(v),
       pickupLocation: v.location.name,
       pickupAddress: v.location.address,
+      pickupLocationId: v.location.id,
     };
   }
 

@@ -1,9 +1,11 @@
 import {
   type GeocodeResult,
+  type Location,
   type VehicleDetail,
   type VehicleFilter,
   type VehicleSummary,
   GeocodeResultListSchema,
+  LocationListSchema,
   VehicleDetailSchema,
   VehicleSummaryListSchema,
 } from "@handoff/contracts";
@@ -65,6 +67,21 @@ export async function getVehicle(id: string): Promise<VehicleDetail | null> {
     throw new Error(`BFF responded ${res.status}`);
   }
   return VehicleDetailSchema.parse(await res.json());
+}
+
+/**
+ * Fetch the branch list from the BFF — the options for the pick-up and
+ * drop-off pickers on the purchase page. Server-side only; the list changes
+ * rarely, so it is cached briefly rather than fetched per render.
+ */
+export async function getLocations(): Promise<Location[]> {
+  const res = await fetch(`${BFF_URL}/locations`, {
+    next: { revalidate: 300 },
+  });
+  if (!res.ok) {
+    throw new Error(`BFF responded ${res.status}`);
+  }
+  return LocationListSchema.parse(await res.json());
 }
 
 /**

@@ -1,14 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getVehicle } from "@/lib/vehicles";
+import { getLocations, getVehicle } from "@/lib/vehicles";
 import { CLASS_IMAGE } from "@/lib/vehicle-images";
 import { CLASS_FEATURES } from "@/lib/vehicle-features";
-
-// Static placeholders until real date/time selection + a reservation hold
-// exist. Mirrors the layout the user specified.
-const PICKUP_WHEN = { day: "Wed, Jul 1, 2026", time: "12:00 PM" };
-const DROPOFF_WHEN = { day: "Fri, Jul 3, 2026", time: "12:00 PM" };
+import RentalWindowPicker from "@/components/RentalWindowPicker";
 
 const LINE_ITEMS = [
   "Vehicle Total Rate",
@@ -23,7 +19,10 @@ export default async function VehicleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const vehicle = await getVehicle(id);
+  const [vehicle, locations] = await Promise.all([
+    getVehicle(id),
+    getLocations(),
+  ]);
 
   if (!vehicle) {
     notFound();
@@ -92,31 +91,11 @@ export default async function VehicleDetailPage({
               </dl>
             </div>
 
-            {/* Pick Up / Drop Off */}
-            <div className="grid gap-4 rounded-xl border border-white/10 bg-white/5 p-5 sm:grid-cols-2">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-white/40">
-                  Pick Up
-                </p>
-                <p className="mt-2 font-medium text-white">
-                  {vehicle.pickupLocation}
-                </p>
-                <p className="text-sm text-white/50">{vehicle.pickupAddress}</p>
-                <p className="mt-2 text-sm text-white/80">{PICKUP_WHEN.day}</p>
-                <p className="text-sm text-white/60">{PICKUP_WHEN.time}</p>
-              </div>
-              <div className="sm:border-l sm:border-white/10 sm:pl-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-white/40">
-                  Drop Off
-                </p>
-                <p className="mt-2 font-medium text-white">
-                  {vehicle.pickupLocation}
-                </p>
-                <p className="text-sm text-white/50">{vehicle.pickupAddress}</p>
-                <p className="mt-2 text-sm text-white/80">{DROPOFF_WHEN.day}</p>
-                <p className="text-sm text-white/60">{DROPOFF_WHEN.time}</p>
-              </div>
-            </div>
+            {/* Pick Up / Drop Off — real selection, drives duration + pricing */}
+            <RentalWindowPicker
+              locations={locations}
+              defaultPickupLocationId={vehicle.pickupLocationId}
+            />
 
             {/* Features — display only, not filterable on /vehicles */}
             <div className="rounded-xl border border-white/10 bg-white/5 p-5">

@@ -65,7 +65,7 @@ export default function VehicleCard({ vehicle }: { vehicle: VehicleSummary }) {
         </dl>
         <Link
           href={`/vehicles/${vehicle.id}`}
-          className="block overflow-hidden rounded-xl border border-white/50 bg-red-500/40 transition-colors hover:border-white/100 text-centerRemove"
+          className="block overflow-hidden rounded-xl border border-white/50 bg-red-500/40 transition-colors hover:border-white/100 text-center tracking-tight"
         >
           Check Out
         </Link>

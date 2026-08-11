@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { GeocodeModule } from './geocode/geocode.module';
+import { LocationsModule } from './locations/locations.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { JourneysModule } from './journeys/journeys.module';
 import { AuthModule } from './auth/auth.module';
@@ -14,6 +15,7 @@ import { PaymentsModule } from './payments/payments.module';
   imports: [
     VehiclesModule,
     GeocodeModule,
+    LocationsModule,
     BookingsModule,
     JourneysModule,
     AuthModule,
