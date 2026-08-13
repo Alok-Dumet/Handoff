@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   type Quote,
   type QuoteLine,
@@ -9,6 +9,7 @@ import {
   formatUsd,
   rentalDays,
 } from '@handoff/contracts';
+import { CatalogService } from '../catalog/catalog.service';
 import { toUpstreamException } from '../upstream-exception';
 
 /**
@@ -22,6 +23,8 @@ const BASIS_POINTS_DIVISOR = 10_000;
 
 @Injectable()
 export class PricingService {
+  constructor(private readonly catalog: CatalogService) {}
+
   private readonly refdataUrl =
     process.env.REFDATA_URL ?? 'http://localhost:3002';
 
@@ -45,11 +48,34 @@ export class PricingService {
 
     const vehicleRateCents = dailyRateCents * days;
 
-    // Add-ons (C3) and protection plans (C4) do not have catalogs yet. The
-    // lines are emitted at zero so the summary has its full shape now and
-    // those features become a lookup, not a reshape.
-    const addOnsCents = 0;
-    const protectionCents = 0;
+    // Resolve the protection plan. An unknown id is rejected rather than
+    // ignored — silently falling back to "none" would charge for coverage the
+    // customer did not get, or vice versa.
+    const plan = request.protectionPlanId
+      ? this.catalog.findProtectionPlan(request.protectionPlanId)
+      : this.catalog.defaultProtectionPlan();
+    if (!plan) {
+      throw new BadRequestException(
+        `Unknown protection plan "${request.protectionPlanId}"`,
+      );
+    }
+    const protectionCents = plan.pricePerDayCents * days;
+
+    // Resolve add-ons the same way. Duplicates in the query are collapsed:
+    // quantity is not modelled yet, so the same id twice is one of that item.
+    const uniqueAddOnIds = [...new Set(request.addOnIds)];
+    const addOns = uniqueAddOnIds.map((id) => {
+      const addOn = this.catalog.findAddOn(id);
+      if (!addOn) {
+        throw new BadRequestException(`Unknown add-on "${id}"`);
+      }
+      return addOn;
+    });
+    const addOnsCents = addOns.reduce(
+      (sum, a) =>
+        sum + (a.chargeMode === 'per_day' ? a.priceCents * days : a.priceCents),
+      0,
+    );
 
     const subtotalCents = vehicleRateCents + protectionCents + addOnsCents;
 
@@ -72,12 +98,20 @@ export class PricingService {
         label: 'Protection Plan',
         amountCents: protectionCents,
         amountLabel: formatUsd(protectionCents),
+        detail:
+          plan.pricePerDayCents > 0
+            ? `${plan.label} — ${days} × ${formatUsd(plan.pricePerDayCents)}/day`
+            : plan.label,
       },
       {
         key: 'add_ons',
         label: 'Add-Ons',
         amountCents: addOnsCents,
         amountLabel: formatUsd(addOnsCents),
+        detail:
+          addOns.length > 0
+            ? addOns.map((a) => a.label).join(', ')
+            : 'None selected',
       },
       {
         key: 'tax',

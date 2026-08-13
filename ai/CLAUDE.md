@@ -82,3 +82,23 @@ Start all of your terminal responses with "BlueBird:"
 - **Scale investigation to the cost of being wrong.** For explanations and orientation,
   answer from what is already known and let the user correct it. Reserve heavy
   verification for claims that something is built, working, or safe to rely on
+
+## Token Discipline
+
+Each of these cost real tokens in past sessions. They are cheap to follow and
+expensive to skip.
+
+- **Preflight before verifying.** Before debugging any runtime failure, check the
+  environment in ONE call: `docker compose -f infra/docker-compose.yml ps` plus
+  `/health` on :3001 and :3002. A 500 is far more often a dead container than a
+  code defect. Chasing a bug through the stack before confirming the stack is up
+  cost ~8 tool calls and found only "Postgres is down"
+- **Never blind-kill a server.** `pkill -f "next dev"` has twice killed the process
+  just started, forcing a restart-and-wait cycle. Check first
+  (`ss -ltnp | grep <port>`), kill by PID, and remember a stale listener on a port
+  makes a new instance fail silently — the old code keeps answering
+- **Read narrowly.** Use `grep -n` to locate, then `Read` with `offset`/`limit`.
+  Reading a 520-line component to change 20 lines is pure waste
+- **Answer from `zdocs/` first.** See the Context Hygiene rule above. An orientation
+  question once cost ~10k tokens of source-dumping to produce an answer that
+  `zdocs/01-monorepo-layout.md` already contained

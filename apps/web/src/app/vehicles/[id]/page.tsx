@@ -1,10 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getLocations, getQuote, getVehicle } from "@/lib/vehicles";
+import {
+  getCatalog,
+  getLocations,
+  getQuote,
+  getTerms,
+  getVehicle,
+} from "@/lib/vehicles";
 import { CLASS_IMAGE } from "@/lib/vehicle-images";
 import { CLASS_FEATURES } from "@/lib/vehicle-features";
 import RentalWindowPicker from "@/components/RentalWindowPicker";
+import PurchaseExtras from "@/components/PurchaseExtras";
 
 // Shown before a rental window is chosen, so the summary keeps its shape
 // instead of collapsing to nothing.
@@ -23,9 +30,11 @@ export default async function VehicleDetailPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  const [vehicle, locations] = await Promise.all([
+  const [vehicle, locations, catalog, terms] = await Promise.all([
     getVehicle(id),
     getLocations(),
+    getCatalog(),
+    getTerms(),
   ]);
 
   if (!vehicle) {
@@ -37,15 +46,31 @@ export default async function VehicleDetailPage({
   // hand-edited URL shows an un-priced summary rather than an error.
   const pickupAt = typeof query.pickupAt === "string" ? query.pickupAt : "";
   const dropoffAt = typeof query.dropoffAt === "string" ? query.dropoffAt : "";
+  const addOnIds =
+    typeof query.addOnIds === "string"
+      ? [query.addOnIds]
+      : (query.addOnIds ?? []);
+  const protectionPlanId =
+    typeof query.protectionPlanId === "string"
+      ? query.protectionPlanId
+      : undefined;
+
   const quote =
     pickupAt && dropoffAt
       ? await getQuote({
           vehicleId: vehicle.id,
           pickupAt,
           dropoffAt,
-          addOnIds: [],
+          addOnIds,
+          protectionPlanId,
         })
       : null;
+
+  // Reserve needs BOTH a priced rental and acceptance of the CURRENT terms
+  // version — matching on version means changed terms invalidate a stale
+  // acceptance rather than silently carrying it forward.
+  const termsAccepted = query.termsAccepted === terms.version;
+  const canReserve = quote !== null && termsAccepted;
 
   return (
     <div className="flex flex-1 flex-col px-6 pb-16 pt-28">
@@ -115,6 +140,8 @@ export default async function VehicleDetailPage({
               locations={locations}
               defaultPickupLocationId={vehicle.pickupLocationId}
             />
+
+            <PurchaseExtras catalog={catalog} terms={terms} />
 
             {/* Features — display only, not filterable on /vehicles */}
             <div className="rounded-xl border border-white/10 bg-white/5 p-5">
@@ -191,11 +218,25 @@ export default async function VehicleDetailPage({
 
               <button
                 type="button"
-                disabled
-                className="w-full cursor-not-allowed rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black opacity-50"
+                disabled={!canReserve}
+                className={
+                  canReserve
+                    ? "w-full rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-white/90"
+                    : "w-full cursor-not-allowed rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black opacity-50"
+                }
               >
                 Reserve
               </button>
+
+              {/* Say which requirement is unmet — a disabled button with no
+                  explanation is a dead end. */}
+              {!canReserve && (
+                <p className="text-center text-xs text-white/40">
+                  {!quote
+                    ? "Choose your pick-up and drop-off times to continue."
+                    : "Accept the rental terms to continue."}
+                </p>
+              )}
             </div>
           </aside>
         </div>

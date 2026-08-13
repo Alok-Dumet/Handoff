@@ -1,14 +1,18 @@
 import {
   type GeocodeResult,
   type Location,
+  type PurchaseCatalog,
   type Quote,
   type QuoteRequest,
+  type RentalTerms,
   type VehicleDetail,
   type VehicleFilter,
   type VehicleSummary,
   GeocodeResultListSchema,
   LocationListSchema,
+  PurchaseCatalogSchema,
   QuoteSchema,
+  RentalTermsSchema,
   VehicleDetailSchema,
   VehicleSummaryListSchema,
 } from "@handoff/contracts";
@@ -85,6 +89,27 @@ export async function getLocations(): Promise<Location[]> {
     throw new Error(`BFF responded ${res.status}`);
   }
   return LocationListSchema.parse(await res.json());
+}
+
+/**
+ * Add-ons and protection plans for the purchase page. Reference data that
+ * changes rarely, so it is cached rather than refetched per render.
+ */
+export async function getCatalog(): Promise<PurchaseCatalog> {
+  const res = await fetch(`${BFF_URL}/catalog`, { next: { revalidate: 300 } });
+  if (!res.ok) {
+    throw new Error(`BFF responded ${res.status}`);
+  }
+  return PurchaseCatalogSchema.parse(await res.json());
+}
+
+/** Rental terms & conditions, versioned so an acceptance can be attributed. */
+export async function getTerms(): Promise<RentalTerms> {
+  const res = await fetch(`${BFF_URL}/terms`, { next: { revalidate: 300 } });
+  if (!res.ok) {
+    throw new Error(`BFF responded ${res.status}`);
+  }
+  return RentalTermsSchema.parse(await res.json());
 }
 
 /**
