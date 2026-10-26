@@ -24,6 +24,11 @@ function clamp(v: number, min: number, max: number) {
   return Math.min(Math.max(v, min), max);
 }
 
+function parsePrice(value: string | null, fallback: number): number {
+  const parsed = value === null ? fallback : Number(value);
+  return Number.isFinite(parsed) ? clamp(parsed, PRICE_MIN, PRICE_MAX) : fallback;
+}
+
 // ── Spinner ──────────────────────────────────────────────────────────────────
 function Spinner() {
   return (
@@ -96,6 +101,7 @@ function RangeSlider({
       <input
         ref={loRef}
         type="range"
+        aria-label="Minimum daily price"
         min={min}
         max={max}
         step={step}
@@ -106,6 +112,7 @@ function RangeSlider({
         }}
         onMouseUp={() => onChangeCommitted([lo, hi])}
         onTouchEnd={() => onChangeCommitted([lo, hi])}
+        onKeyUp={() => onChangeCommitted([lo, hi])}
         className="range-thumb pointer-events-none absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent"
       />
 
@@ -113,6 +120,7 @@ function RangeSlider({
       <input
         ref={hiRef}
         type="range"
+        aria-label="Maximum daily price"
         min={min}
         max={max}
         step={step}
@@ -123,6 +131,7 @@ function RangeSlider({
         }}
         onMouseUp={() => onChangeCommitted([lo, hi])}
         onTouchEnd={() => onChangeCommitted([lo, hi])}
+        onKeyUp={() => onChangeCommitted([lo, hi])}
         className="range-thumb pointer-events-none absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent"
       />
     </div>
@@ -144,7 +153,6 @@ function LocationAutocomplete({
   const [settledQuery, setSettledQuery] = useState("");
 
   const debouncedInput = useDebounced(input, 400);
-  const reqId = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -158,17 +166,24 @@ function LocationAutocomplete({
 
   useEffect(() => {
     if (tooShort) return;
-    const id = ++reqId.current;
+    let active = true;
     geocode(debouncedInput)
       .then((res) => {
-        if (id !== reqId.current) return;
+        if (!active) return;
         setOptions(res);
         setOpen(res.length > 0);
         setActiveIndex(-1);
       })
+      .catch(() => {
+        if (!active) return;
+        setOptions([]);
+        setOpen(false);
+        setActiveIndex(-1);
+      })
       .finally(() => {
-        if (id === reqId.current) setSettledQuery(debouncedInput);
+        if (active) setSettledQuery(debouncedInput);
       });
+    return () => { active = false; };
   }, [debouncedInput, tooShort]);
 
   // Close on outside click
@@ -292,8 +307,8 @@ export default function VehicleFilters() {
   const transmission = searchParams.get("transmission") ?? "";
   const minSeats = searchParams.get("minSeats") ?? "";
   const sort = searchParams.get("sort") ?? "";
-  const priceLow = Number(searchParams.get("minPricePerDay") ?? PRICE_MIN);
-  const priceHigh = Number(searchParams.get("maxPricePerDay") ?? PRICE_MAX);
+  const priceHigh = Math.max(PRICE_STEP, parsePrice(searchParams.get("maxPricePerDay"), PRICE_MAX));
+  const priceLow = Math.min(priceHigh - PRICE_STEP, parsePrice(searchParams.get("minPricePerDay"), PRICE_MIN));
 
   const update = (changes: Record<string, string | string[] | null>) => {
     const params = new URLSearchParams(searchParams.toString());

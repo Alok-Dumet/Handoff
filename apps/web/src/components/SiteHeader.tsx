@@ -33,6 +33,7 @@ export default function SiteHeader() {
                 src="/Icon.png"
                 alt="User Profile"
                 fill
+                sizes="32px"
                 className="pointer-events-none rounded-full object-cover"
                 id="image"
               />

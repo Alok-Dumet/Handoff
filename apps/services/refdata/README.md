@@ -26,7 +26,6 @@ Prisma 7 config lives in `prisma.config.ts`. The generated client is emitted to 
 ```bash
 pnpm dev
 pnpm build
-pnpm test
 pnpm lint
 ```
 

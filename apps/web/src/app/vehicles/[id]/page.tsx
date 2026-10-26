@@ -66,11 +66,8 @@ export default async function VehicleDetailPage({
         })
       : null;
 
-  // Reserve needs BOTH a priced rental and acceptance of the CURRENT terms
-  // version — matching on version means changed terms invalidate a stale
-  // acceptance rather than silently carrying it forward.
+  // Match the current version so changed terms invalidate stale acceptance.
   const termsAccepted = query.termsAccepted === terms.version;
-  const canReserve = quote !== null && termsAccepted;
 
   return (
     <div className="flex flex-1 flex-col px-6 pb-16 pt-28">
@@ -211,30 +208,23 @@ export default async function VehicleDetailPage({
                 </div>
               </dl>
 
-              <p className="text-center text-sm text-white/50">
-                Time left to book:{" "}
-                <span className="font-medium text-white/80">20m:54s</span>
-              </p>
-
               <button
                 type="button"
-                disabled={!canReserve}
-                className={
-                  canReserve
-                    ? "w-full rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-white/90"
-                    : "w-full cursor-not-allowed rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black opacity-50"
-                }
+                disabled
+                aria-describedby="reservation-status"
+                className="w-full cursor-not-allowed rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-black opacity-50"
               >
                 Reserve
               </button>
 
-              {/* Say which requirement is unmet — a disabled button with no
-                  explanation is a dead end. */}
-              {!canReserve && (
+              <p id="reservation-status" className="text-center text-xs text-white/40">
+                Online reservations are not available yet. Your selections have not been booked.
+              </p>
+              {(!quote || !termsAccepted) && (
                 <p className="text-center text-xs text-white/40">
                   {!quote
-                    ? "Choose your pick-up and drop-off times to continue."
-                    : "Accept the rental terms to continue."}
+                    ? "Choose your pick-up and drop-off times to preview your total."
+                    : "Please review and accept the rental terms before purchasing."}
                 </p>
               )}
             </div>

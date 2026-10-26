@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
   CurrentRentalSchema,
   type CurrentRental,
@@ -53,7 +53,9 @@ export class RentalsService {
       reservations[0];
 
     if (!preferred) {
-      throw new Error('No reservations available for rental status');
+      throw new NotFoundException(
+        'No reservations available for rental status',
+      );
     }
 
     return this.reservationsService.findOne(preferred.id);

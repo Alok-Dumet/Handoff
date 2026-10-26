@@ -2,7 +2,8 @@
 
 Next.js frontend for Handoff.
 
-The home page fetches vehicle summaries from the BFF as a Server Component and renders them with MUI. TanStack Query is wired for upcoming interactive/client-side workflows, and Storybook documents reusable UI components.
+React and Tailwind CSS frontend with Clerk authentication. The vehicle listing
+and quote pages fetch data from the BFF using Server Components.
 
 ## Commands
 
@@ -10,8 +11,6 @@ The home page fetches vehicle summaries from the BFF as a Server Component and r
 pnpm dev
 pnpm build
 pnpm lint
-pnpm storybook
-pnpm build-storybook
 ```
 
 From the repo root, prefer:
@@ -24,9 +23,14 @@ pnpm --filter @handoff/web <script>
 
 `BFF_URL` controls the server-side URL used by the web app. It defaults to `http://localhost:3001`.
 
+`NEXT_PUBLIC_BFF_URL` controls browser location searches (same default).
+Configure Clerk keys in `.env.local` for your authentication instance.
+See the root README for database and backend startup.
+
 ## Structure
 
-- `src/app/page.tsx` - vehicle-list page.
+- `src/app/page.tsx` - landing page.
+- `src/app/vehicles/page.tsx` - vehicle listing and filters.
+- `src/app/vehicles/[id]/page.tsx` - rental quote, add-ons, and terms. Reservation submission is unfinished.
+- `src/app/sign-in` and `src/app/sign-up` - Clerk authentication pages.
 - `src/components/VehicleCard.tsx` - presentational vehicle card.
-- `src/theme.ts` - MUI theme.
-- `.storybook/` - Storybook config.

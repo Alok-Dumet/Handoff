@@ -15,7 +15,6 @@ The BFF owns UI-shaped API responses. It fetches domain vehicles and bookings fr
 ```bash
 pnpm dev
 pnpm build
-pnpm test
 pnpm lint
 ```
 
