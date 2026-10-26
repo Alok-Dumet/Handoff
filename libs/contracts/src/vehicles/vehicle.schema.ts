@@ -33,8 +33,8 @@ export const LocationListSchema = z.array(LocationSchema);
 export type LocationList = z.infer<typeof LocationListSchema>;
 
 /**
- * Vehicle — the domain shape owned by the refdata service.
- * This is what refdata stores and returns from GET /vehicles, with the
+ * Vehicle — the domain shape read by the API's internal inventory module,
+ * with the
  * pick-up location resolved (joined) rather than a bare foreign key.
  */
 export const VehicleSchema = z.object({
@@ -135,7 +135,7 @@ export type GeocodeResultList = z.infer<typeof GeocodeResultListSchema>;
 
 /**
  * VehicleFilter — the query shape for GET /vehicles. Every field is optional;
- * an empty filter returns everything. Validated on the server (refdata + BFF),
+ * an empty filter returns everything. Validated on the server,
  * never trusting the client alone. Numerics use z.coerce because query-string
  * params always arrive as strings.
  */

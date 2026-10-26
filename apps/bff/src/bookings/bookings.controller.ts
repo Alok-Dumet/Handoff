@@ -3,11 +3,12 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
 } from '@nestjs/common';
 import {
   type Booking,
-  type BookingJourneyResponse,
+  type BookingCreationResponse,
   CreateBookingSchema,
 } from '@handoff/contracts';
 import { BookingsService } from './bookings.service';
@@ -22,12 +23,21 @@ export class BookingsController {
   }
 
   @Post()
-  create(@Body() body: unknown): Promise<BookingJourneyResponse> {
+  async create(@Body() body: unknown): Promise<BookingCreationResponse> {
     const result = CreateBookingSchema.safeParse(body);
     if (!result.success) {
       throw new BadRequestException(result.error.issues);
     }
 
-    return this.bookingsService.create(result.data);
+    return {
+      booking: await this.bookingsService.create(result.data),
+      nextJourney: null,
+      alternatives: [],
+    };
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<Booking> {
+    return this.bookingsService.findOne(id);
   }
 }

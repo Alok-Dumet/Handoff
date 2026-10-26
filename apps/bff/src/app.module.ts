@@ -6,12 +6,6 @@ import { LocationsModule } from './locations/locations.module';
 import { PricingModule } from './pricing/pricing.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { BookingsModule } from './bookings/bookings.module';
-import { JourneysModule } from './journeys/journeys.module';
-import { AuthModule } from './auth/auth.module';
-import { CustomersModule } from './customers/customers.module';
-import { ReservationsModule } from './reservations/reservations.module';
-import { RentalsModule } from './rentals/rentals.module';
-import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -21,12 +15,6 @@ import { PaymentsModule } from './payments/payments.module';
     PricingModule,
     CatalogModule,
     BookingsModule,
-    JourneysModule,
-    AuthModule,
-    CustomersModule,
-    ReservationsModule,
-    RentalsModule,
-    PaymentsModule,
   ],
   controllers: [AppController],
 })

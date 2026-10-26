@@ -20,7 +20,7 @@ coverage/
 next-env.d.ts
 
 # generated local files
-apps/services/refdata/src/generated/
+apps/bff/src/generated/
 
 # environment
 .env

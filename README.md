@@ -1,84 +1,90 @@
 # Handoff
 
-Vehicle rental prototype built with pnpm/Turbo, Next.js, React, Tailwind CSS,
-Clerk, NestJS, and PostgreSQL/Prisma.
+Vehicle rental demo built with pnpm/Turbo, Next.js, NestJS, and PostgreSQL/Prisma.
+Implementation is deliberately staged; see [current_plan.md](current_plan.md).
 
 ## Workspace
 
-- `apps/web` - Next.js app with Tailwind CSS and Clerk authentication.
-- `apps/bff` - NestJS backend-for-frontend. It calls refdata and reshapes domain vehicles for the UI.
-- `apps/services/refdata` - NestJS reference-data service backed by Postgres through Prisma.
-- `apps/services/customer` - Customer profile service (seeded in-memory data).
-- `apps/services/reservation` - Reservation service backed by refdata, with in-memory payment state.
-- `libs/contracts` - Shared Zod schemas and inferred TypeScript types.
+- `apps/web` — Next.js frontend with Tailwind CSS. Clerk remains until slice 2.
+- `apps/bff` — the single NestJS API, including inventory, pricing, bookings, and Prisma.
+  The existing directory/package name is retained for compatibility.
+- `libs/contracts` — shared Zod schemas and TypeScript types.
 
-## Local Development
+The separate refdata, customer, and reservation apps and unused mock API workflows
+have been removed. PostgreSQL container/database/volume names still include
+`refdata` intentionally: renaming them would disconnect existing local data.
 
-Use Node.js 24 LTS, pnpm 11.6.0 (declared in `package.json`), and Docker Compose.
-From the repository root, install dependencies and start Postgres:
+## Local development
+
+Use Node.js 24 LTS, pnpm 11.6.0, and Docker Compose. From the repository root:
 
 ```bash
 pnpm install
 docker compose -f infra/docker-compose.yml up -d
-```
-
-Create `apps/services/refdata/.env` with the local connection:
-
-```dotenv
-DATABASE_URL=postgresql://handoff:handoff@localhost:5432/refdata
-```
-
-Configure `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` in
-`apps/web/.env.local` for your authentication instance. Clerk also supports
-temporary keyless configuration in development. Production requires your own keys.
-Do not commit secrets.
-
-Initialize the database and run the app stack:
-
-```bash
-pnpm --filter @handoff/refdata exec prisma migrate deploy
-pnpm --filter @handoff/contracts build
-pnpm --filter @handoff/refdata exec prisma generate
-pnpm --filter @handoff/refdata exec prisma db seed
+pnpm --filter @handoff/bff db:migrate
+pnpm --filter @handoff/bff... build
+pnpm --filter @handoff/bff db:seed
 pnpm dev
 ```
 
-Default ports:
+The API defaults to the bundled local database:
+`postgresql://handoff:handoff@localhost:5432/refdata`.
+For another database, set `DATABASE_URL` in `apps/bff/.env`
+(see `apps/bff/.env.example`). Production requires an explicit `DATABASE_URL`.
 
-- web: `http://localhost:3000`
-- BFF: `http://localhost:3001`
-- refdata: `http://localhost:3002`
-- customer: `http://localhost:3003`
-- reservation: `http://localhost:3004`
+Upgrading an existing checkout: move any custom settings from
+`apps/services/refdata/.env` into `apps/bff/.env`. Run `pnpm install` to update
+workspace links. Migration files have moved, but their contents/history are unchanged.
+Do not reset the database or remove Docker volumes. Existing populated databases
+do not need reseeding; the seed updates demo inventory, so use it for initial setup.
 
-Subsequent runs need Postgres and `pnpm dev`. Startup builds shared contracts
-before the apps and regenerates Prisma. Apply migrations again after schema changes;
-startup does not change the database.
+Clerk is still used by the frontend in this slice. Existing `apps/web/.env.local`
+settings continue to work; development can use Clerk's temporary keyless setup.
+Local account authentication without Clerk is the next slice.
 
-Stop the app with Ctrl+C, then run `docker compose -f infra/docker-compose.yml stop`.
-Only Postgres is containerized; Compose does not yet start the application services.
+Addresses:
+- Website: http://localhost:3000
+- API: http://localhost:3001
+- PostgreSQL: localhost:5432
+
+Subsequent starts need only the running database and `pnpm dev`.
+Startup builds shared contracts and generates Prisma before starting the API.
+Only run one development instance at a time. Stop it with Ctrl+C, then optionally:
+
+```bash
+docker compose -f infra/docker-compose.yml stop
+```
+
+Only PostgreSQL is containerized today. Full-stack Compose comes in a later slice.
 
 ## Validation
 
 ```bash
 pnpm build
 pnpm lint
-pnpm test       # regression tests; no running services required
-pnpm test:smoke # requires the running stack and seeded database
+pnpm test
+pnpm test:api
+pnpm test:smoke
 ```
 
-Smoke checks cover health endpoints, filtering, quotes, missing records, invalid
-requests, and page responses without creating bookings. Browser testing is still
-needed for client interactions and authenticated account flows.
+- `test`: dependency-free redirect regression tests (removed with Clerk in slice 2).
+- `test:api`: builds the API/contracts, starts a disposable PostgreSQL 17 container
+  on a random local port, applies migrations, seeds, tests routes and persistence,
+  and removes the test container/volume. Requires Docker; it does not use your database.
+- `test:smoke`: non-mutating API/page checks against the running, seeded local stack.
 
-## Current feature boundaries
+## Current boundaries
 
-Vehicle browsing, filtering, location search, rental-window pricing, add-ons,
-and terms selection are implemented. The Reserve button is disabled because web
-checkout submission is unfinished; choosing dates does not book a car. The legacy
-booking API exists, with additional reservation-storage work in progress.
+Browsing, filtering, location search, rental pricing, add-ons, and terms selection
+work. Checkout submission, local accounts, booking ownership/history, confirmation
+email, and the 24-hour turnaround rule are not implemented yet.
+The Reserve button remains explicitly disabled.
 
-Customer profiles and journey workflows contain seeded/mock data. Payment sessions
-and identity verification are mocks, with some state held only in memory. The
-reservation/journey destinations returned by these APIs do not yet have web pages.
-These features need completion before a public production launch.
+The basic booking API is preserved for demo use, including its existing overlap
+check; concurrency-safe booking and retry protection are scheduled for slice 3.
+It is currently unauthenticated and must not be exposed as a public booking service.
+
+Mock payments, profiles, identity verification, rentals, and extra journeys are
+removed. `POST /bookings` keeps its response envelope but now returns
+`nextJourney: null` and `alternatives: []` instead of links to nonexistent pages.
+See [API routes](apps/bff/README.md) and the staged plan for the next steps.

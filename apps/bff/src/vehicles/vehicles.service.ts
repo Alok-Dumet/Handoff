@@ -4,10 +4,8 @@ import {
   type VehicleDetail,
   type VehicleFilter,
   type VehicleSummary,
-  VehicleListSchema,
-  VehicleSchema,
 } from '@handoff/contracts';
-import { toUpstreamException } from '../upstream-exception';
+import { InventoryService } from '../inventory/inventory.service';
 
 const EARTH_RADIUS_MI = 3958.8;
 const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -49,32 +47,10 @@ function haversineMiles(
 
 @Injectable()
 export class VehiclesService {
-  private readonly refdataUrl =
-    process.env.REFDATA_URL ?? 'http://localhost:3002';
+  constructor(private readonly inventory: InventoryService) {}
 
   async findAll(filter: VehicleFilter = {}): Promise<VehicleSummary[]> {
-    // Forward the data filters (class/transmission/seats/price) to refdata,
-    // which owns the DB. Distance + sorting are layered on here in the BFF.
-    const params = new URLSearchParams();
-    filter.classes?.forEach((c) => params.append('classes', c));
-    if (filter.transmission) params.set('transmission', filter.transmission);
-    if (filter.minSeats !== undefined)
-      params.set('minSeats', String(filter.minSeats));
-    if (filter.minPricePerDay !== undefined)
-      params.set('minPricePerDay', String(filter.minPricePerDay));
-    if (filter.maxPricePerDay !== undefined)
-      params.set('maxPricePerDay', String(filter.maxPricePerDay));
-
-    const qs = params.toString();
-    const res = await fetch(`${this.refdataUrl}/vehicles${qs ? `?${qs}` : ''}`);
-    if (!res.ok) {
-      throw await toUpstreamException(res, `refdata responded ${res.status}`);
-    }
-
-    // Validate the domain response at the boundary: if refdata's shape ever
-    // drifts from the contract, we fail loudly here instead of leaking bad
-    // data to the frontend.
-    const vehicles = VehicleListSchema.parse(await res.json());
+    const vehicles = await this.inventory.findAll(filter);
 
     // Compute distance from the user anchor when both coords are supplied.
     const hasAnchor = filter.lat !== undefined && filter.lng !== undefined;
@@ -123,15 +99,7 @@ export class VehiclesService {
 
   /** Fetch a single vehicle by id and reshape it for the detail page. */
   async findOne(id: string): Promise<VehicleDetail> {
-    const res = await fetch(
-      `${this.refdataUrl}/vehicles/${encodeURIComponent(id)}`,
-    );
-    if (!res.ok) {
-      // Preserves the upstream status, so a refdata 404 stays a 404 here.
-      throw await toUpstreamException(res, `refdata responded ${res.status}`);
-    }
-
-    const v = VehicleSchema.parse(await res.json());
+    const v = await this.inventory.findOne(id);
 
     const effectivePrice =
       v.salePricePerDay != null && v.salePricePerDay < v.pricePerDay

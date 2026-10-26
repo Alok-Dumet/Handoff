@@ -8,7 +8,8 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test:smoke": "node scripts/smoke-test.mjs",
-    "test": "node --test scripts/*.test.mjs"
+    "test": "node --test scripts/*.test.mjs",
+    "test:api": "pnpm --filter @handoff/bff... build && node --test apps/bff/test/*.test.mjs"
   },
   "devDependencies": {
     "turbo": "^2.9.18"

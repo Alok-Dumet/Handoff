@@ -1,76 +1,199 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  BookingDetailSchema,
   BookingListSchema,
-  BookingJourneyResponseSchema,
   BookingSchema,
+  formatUsd,
+  localDateTimeToMs,
   type Booking,
-  type BookingJourneyResponse,
+  type BookingDetail,
   type CreateBooking,
+  type CreateBookingWithExtras,
 } from '@handoff/contracts';
-import { JourneysService } from '../journeys/journeys.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class BookingsService {
-  private readonly refdataUrl =
-    process.env.REFDATA_URL ?? 'http://localhost:3002';
-
-  constructor(private readonly journeysService: JourneysService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(): Promise<Booking[]> {
-    const res = await fetch(`${this.refdataUrl}/bookings`);
-
-    if (!res.ok) {
-      throw await toUpstreamException(res);
-    }
-
-    return BookingListSchema.parse(await res.json());
-  }
-
-  async create(input: CreateBooking): Promise<BookingJourneyResponse> {
-    const res = await fetch(`${this.refdataUrl}/bookings`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(input),
+    const bookings = await this.prisma.booking.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     });
 
-    if (!res.ok) {
-      throw await toUpstreamException(res);
+    return BookingListSchema.parse(bookings.map(toContractBooking));
+  }
+
+  async findOne(id: string): Promise<Booking> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+    });
+
+    if (!booking) {
+      throw new NotFoundException({ message: 'Booking not found' });
     }
 
-    const booking = BookingSchema.parse(await res.json());
-    const journey = this.journeysService.resolve({
-      bookingId: booking.id,
-      vehicleId: booking.vehicleId,
-      customerEmail: booking.customerEmail,
-      bookingStatus: booking.status,
-      signals: {
-        checkedInEligible: true,
-        biometricEligible: false,
-        receiptAvailable: false,
-        upgradeAvailable: false,
+    return BookingSchema.parse(toContractBooking(booking));
+  }
+
+  async create(input: CreateBooking): Promise<Booking> {
+    const startDate = new Date(input.startDate);
+    const endDate = new Date(input.endDate);
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: input.vehicleId },
+      select: { id: true },
+    });
+
+    if (!vehicle) {
+      throw new NotFoundException(`Vehicle ${input.vehicleId} not found`);
+    }
+
+    const conflictingBooking = await this.prisma.booking.findFirst({
+      where: {
+        vehicleId: input.vehicleId,
+        status: { in: ['pending', 'confirmed'] },
+        startDate: { lt: endDate },
+        endDate: { gt: startDate },
+      },
+      select: { id: true },
+    });
+
+    if (conflictingBooking) {
+      throw new ConflictException('Vehicle is unavailable for those dates');
+    }
+
+    const booking = await this.prisma.booking.create({
+      data: {
+        id: `booking_${randomUUID()}`,
+        vehicleId: input.vehicleId,
+        customerName: input.customerName,
+        customerEmail: input.customerEmail,
+        startDate,
+        endDate,
       },
     });
 
-    return BookingJourneyResponseSchema.parse({
-      booking,
-      nextJourney: journey.nextJourney,
-      alternatives: journey.alternatives,
+    return BookingSchema.parse(toContractBooking(booking));
+  }
+
+  /**
+   * Create a booking from the purchase page, storing the rental window,
+   * selected extras, and the totals the BFF computed.
+   *
+   * The overlap check uses the precise pick-up/drop-off timestamps rather
+   * than whole days: a car returned at 10:00 is genuinely available to
+   * someone collecting it at 14:00 the same day, and blocking that would
+   * lose real bookings.
+   */
+  async createWithExtras(
+    input: CreateBookingWithExtras,
+  ): Promise<BookingDetail> {
+    const { extras } = input;
+    const pickupAt = new Date(localDateTimeToMs(extras.pickupAt));
+    const dropoffAt = new Date(localDateTimeToMs(extras.dropoffAt));
+
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: input.vehicleId },
+      select: { id: true },
+    });
+    if (!vehicle) {
+      throw new NotFoundException(`Vehicle ${input.vehicleId} not found`);
+    }
+
+    // Both branches must exist. Validated as non-empty strings upstream, but
+    // only the database can say whether they name real locations.
+    const locationIds = [
+      ...new Set([extras.pickupLocationId, extras.dropoffLocationId]),
+    ];
+    const found = await this.prisma.location.findMany({
+      where: { id: { in: locationIds } },
+      select: { id: true },
+    });
+    if (found.length !== locationIds.length) {
+      const known = new Set(found.map((l) => l.id));
+      const missing = locationIds.filter((id) => !known.has(id));
+      throw new NotFoundException(`Unknown location(s): ${missing.join(', ')}`);
+    }
+
+    const conflict = await this.prisma.booking.findFirst({
+      where: {
+        vehicleId: input.vehicleId,
+        status: { in: ['pending', 'confirmed'] },
+        // Compare against the precise window where one was recorded, and
+        // fall back to the date-only columns for older bookings.
+        AND: [
+          {
+            OR: [
+              { pickupAt: { lt: dropoffAt } },
+              { pickupAt: null, startDate: { lt: dropoffAt } },
+            ],
+          },
+          {
+            OR: [
+              { dropoffAt: { gt: pickupAt } },
+              { dropoffAt: null, endDate: { gt: pickupAt } },
+            ],
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    if (conflict) {
+      throw new ConflictException('Vehicle is unavailable for those dates');
+    }
+
+    const booking = await this.prisma.booking.create({
+      data: {
+        id: `booking_${randomUUID()}`,
+        vehicleId: input.vehicleId,
+        customerName: input.customerName,
+        customerEmail: input.customerEmail,
+        startDate: new Date(input.startDate),
+        endDate: new Date(input.endDate),
+        pickupLocationId: extras.pickupLocationId,
+        dropoffLocationId: extras.dropoffLocationId,
+        pickupAt,
+        dropoffAt,
+        addOnIds: extras.addOnIds,
+        protectionPlanId: extras.protectionPlanId,
+        acceptedTermsVersion: extras.acceptedTermsVersion,
+        subtotalCents: input.subtotalCents,
+        taxCents: input.taxCents,
+        totalCents: input.totalCents,
+      },
+    });
+
+    return BookingDetailSchema.parse({
+      ...toContractBooking(booking),
+      extras,
+      subtotalCents: input.subtotalCents,
+      taxCents: input.taxCents,
+      totalCents: input.totalCents,
+      totalLabel: formatUsd(input.totalCents),
     });
   }
 }
 
-async function toUpstreamException(res: Response): Promise<HttpException> {
-  let body: string | Record<string, unknown> =
-    `refdata responded ${res.status}`;
-  try {
-    const jsonBody: unknown = await res.json();
-    body =
-      typeof jsonBody === 'object' && jsonBody !== null
-        ? (jsonBody as Record<string, unknown>)
-        : String(jsonBody);
-  } catch {
-    // Keep the fallback body when refdata did not return JSON.
-  }
-
-  return new HttpException(body, res.status);
+function toContractBooking(booking: {
+  id: string;
+  vehicleId: string;
+  customerName: string;
+  customerEmail: string;
+  startDate: Date;
+  endDate: Date;
+  status: string;
+  createdAt: Date;
+}) {
+  return {
+    ...booking,
+    startDate: booking.startDate.toISOString().slice(0, 10),
+    endDate: booking.endDate.toISOString().slice(0, 10),
+    createdAt: booking.createdAt.toISOString(),
+  };
 }

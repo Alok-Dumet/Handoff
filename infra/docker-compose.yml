@@ -1,4 +1,4 @@
-# Local-dev infrastructure. Postgres for the refdata service (Phase 3).
+# Local Postgres for the API. Keep the legacy name/volume to preserve existing data.
 # Usage: docker compose -f infra/docker-compose.yml up -d
 services:
   refdata-db:

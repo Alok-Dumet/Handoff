@@ -10,7 +10,7 @@ import {
  *
  * Parsed through the contract at module load, so a malformed catalog fails at
  * boot rather than halfway through rendering a customer's booking summary.
- * When this moves to refdata, only the source of these objects changes.
+ * These catalogs remain static configuration for the demo.
  */
 
 export const PURCHASE_CATALOG: PurchaseCatalog = PurchaseCatalogSchema.parse({

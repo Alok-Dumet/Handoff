@@ -3,30 +3,28 @@ import {
   type Quote,
   type QuoteLine,
   type QuoteRequest,
-  type Vehicle,
   CENTS_PER_DOLLAR,
-  VehicleSchema,
   formatUsd,
   rentalDays,
 } from '@handoff/contracts';
 import { CatalogService } from '../catalog/catalog.service';
-import { toUpstreamException } from '../upstream-exception';
+import { InventoryService } from '../inventory/inventory.service';
 
 /**
  * Local tax applied to the taxable subtotal, in basis points (1 bp = 0.01%).
  * An integer so the tax computation never touches floating point. 950 bp =
  * 9.5%, roughly LA County. A real system would vary this by branch; that
- * belongs in refdata alongside the location, not hard-coded here.
+ * would be stored alongside the location rather than hard-coded here.
  */
 const TAX_BASIS_POINTS = 950;
 const BASIS_POINTS_DIVISOR = 10_000;
 
 @Injectable()
 export class PricingService {
-  constructor(private readonly catalog: CatalogService) {}
-
-  private readonly refdataUrl =
-    process.env.REFDATA_URL ?? 'http://localhost:3002';
+  constructor(
+    private readonly catalog: CatalogService,
+    private readonly inventory: InventoryService,
+  ) {}
 
   /**
    * Price a rental. This is the authoritative calculation — the browser
@@ -34,7 +32,7 @@ export class PricingService {
    * change what the customer is charged.
    */
   async quote(request: QuoteRequest): Promise<Quote> {
-    const vehicle = await this.fetchVehicle(request.vehicleId);
+    const vehicle = await this.inventory.findOne(request.vehicleId);
     const days = rentalDays(request.pickupAt, request.dropoffAt);
 
     // Charge the sale price when one applies — same rule the display labels
@@ -133,16 +131,5 @@ export class PricingService {
       totalCents,
       totalLabel: formatUsd(totalCents),
     };
-  }
-
-  private async fetchVehicle(id: string): Promise<Vehicle> {
-    const res = await fetch(
-      `${this.refdataUrl}/vehicles/${encodeURIComponent(id)}`,
-    );
-    if (!res.ok) {
-      // Keeps a refdata 404 a 404, so an unknown vehicle is not a 500.
-      throw await toUpstreamException(res, `refdata responded ${res.status}`);
-    }
-    return VehicleSchema.parse(await res.json());
   }
 }

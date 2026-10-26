@@ -5,7 +5,7 @@ import { z } from 'zod';
  *
  * Prices are integer CENTS, same as the pricing contract — money never touches
  * a float. Both catalogs are served by the BFF from static config for now; the
- * shapes are DB-ready so moving them into refdata later is a storage change,
+ * shapes are DB-ready so persisting them later is a storage change,
  * not a contract change.
  */
 

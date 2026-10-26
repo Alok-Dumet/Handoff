@@ -14,9 +14,8 @@ const BookingFieldsSchema = z.object({
 
 /**
  * The purchase-page booking: everything a reservation needs beyond the bare
- * dates. Kept separate from BookingFieldsSchema because payments, rentals and
- * journeys already read the date-only shape — this extends the booking rather
- * than redefining what those consumers rely on.
+ * dates. Kept separate from BookingFieldsSchema to preserve existing date-only
+ * bookings while the checkout flow is implemented in a later slice.
  *
  * Amounts are integer CENTS, recomputed by the server at write time. The
  * client's quote is a display; whatever it claims, the stored total is the
@@ -59,6 +58,14 @@ export type Booking = z.infer<typeof BookingSchema>;
 export const BookingListSchema = z.array(BookingSchema);
 export type BookingList = z.infer<typeof BookingListSchema>;
 
+/** Preserve the legacy response envelope without advertising removed journeys. */
+export const BookingCreationResponseSchema = z.object({
+  booking: BookingSchema,
+  nextJourney: z.null(),
+  alternatives: z.array(z.never()),
+});
+export type BookingCreationResponse = z.infer<typeof BookingCreationResponseSchema>;
+
 /**
  * What the purchase page submits. The window, extras and accepted terms come
  * from the customer; the price does NOT — the server recomputes it, so a
@@ -73,7 +80,7 @@ export const CreateReservationSchema = z.object({
 export type CreateReservation = z.infer<typeof CreateReservationSchema>;
 
 /**
- * The storage shape refdata writes: the customer's inputs plus the totals the
+ * The storage shape the API writes: the customer's inputs plus the totals the
  * BFF computed. Separate from CreateReservation precisely because these price
  * fields must never be accepted from the browser.
  */
