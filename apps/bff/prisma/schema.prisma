@@ -89,7 +89,11 @@ model Booking {
   subtotalCents Int?
   taxCents      Int?
   totalCents    Int?
+  requestKey   String?
+  requestHash  String?
+  checkoutSnapshot Json?
 
+  @@unique([userId, requestKey])
   @@index([vehicleId])
   @@index([userId])
   @@map("bookings")

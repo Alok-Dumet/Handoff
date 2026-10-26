@@ -18,15 +18,53 @@ separate domain services.
 - `POST /auth/logout` — revoke the current session and clear its cookie
 - `GET /bookings` — latest 10 belonging to the authenticated user
 - `GET /bookings/:id`
-- `POST /bookings` — basic date-only booking
+- `POST /bookings` — priced, confirmed checkout with retry protection
 
 Vehicle/location/quote response shapes are unchanged. Booking creation keeps the
 `{ booking, nextJourney, alternatives }` envelope, but `nextJourney` is now null
 and `alternatives` is empty. Booking reads return the booking contract directly.
-Booking routes require a session. `POST /bookings` accepts vehicleId/startDate/endDate;
-customer name/email come from that session, ignoring client-supplied identity.
-Another user's booking (or an unowned legacy booking) returns 404. Full checkout,
-concurrency protection, and a 24-hour turnaround are subsequent work.
+Booking routes require a session; customer name/email come from that session,
+ignoring client-supplied identity. Another user's booking (or an unowned legacy
+booking) returns 404. Date-only legacy records remain readable, but new writes
+must use checkout. New booking details include the immutable quote and branch/
+vehicle labels used at confirmation.
+
+Checkout body:
+
+```json
+{
+  "vehicleId": "veh_001",
+  "requestKey": "79ed7e6c-6349-4bc4-9561-9c2d54a31ce7",
+  "expectedTotalCents": 9198,
+  "extras": {
+    "pickupLocationId": "loc_lax",
+    "dropoffLocationId": "loc_lax",
+    "pickupAt": "2027-01-01T10:00",
+    "dropoffAt": "2027-01-03T10:00",
+    "addOnIds": [],
+    "protectionPlanId": "protection_none",
+    "acceptedTermsVersion": "2026-10-27"
+  }
+}
+```
+
+Use the car's `pickupLocationId` for both locations, current `/terms` version,
+and `/quote` total; the values above are illustrative. Times are UTC in minute
+precision, must start in the future and span 1 hour–90 days. The API recomputes
+prices and returns 409 if the displayed total or terms are stale. Unknown extras,
+invalid times, or another branch are rejected. New bookings are immediately confirmed.
+
+Retain the same UUID request key when retrying an unchanged request. Replays return
+the same booking with 201; changing the payload for an already-used key returns
+409. Keys are scoped to the authenticated user. User and vehicle row locks inside
+a Read Committed transaction serialize retries and competing bookings. Pricing
+uses the locked vehicle; the transaction stores both totals and display labels.
+
+`GET /vehicles?pickupAt=...&dropoffAt=...` filters availability with the same rule:
+occupied interval `[pickup, return + 24 hours)`. Both dates must be supplied.
+The proposed rental also needs its own turnaround before any later booking.
+Pending/confirmed legacy date-only records still block availability; cancelled
+records do not. Exactly 24 hours after return is available without a background job.
 
 Customer, reservation, rental, payment, and journey routes remain removed (404).
 The old identity-header auth stub has been replaced with database-backed sessions.

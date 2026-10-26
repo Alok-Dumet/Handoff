@@ -1,13 +1,12 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * A rental window: where and when the customer picks the vehicle up, and where
  * and when they bring it back.
  *
- * Times are LOCAL to the branch — a 10:00 pick-up means 10:00 at that counter,
- * regardless of where the customer happens to be browsing from — so these are
- * timezone-less local datetime strings (`YYYY-MM-DDTHH:MM`), which is exactly
- * what an `<input type="datetime-local">` produces.
+ * The demo uses UTC for every branch, shown explicitly in the UI. Inputs use
+ * `YYYY-MM-DDTHH:MM` (the datetime-local control's format) and are interpreted
+ * as UTC, never as the browser or server's system timezone.
  */
 export const LocalDateTimeSchema = z.iso
   .datetime({ local: true })
@@ -16,7 +15,7 @@ export const LocalDateTimeSchema = z.iso
   // z.iso.datetime({ local: true }) alone still admits those forms.
   .regex(
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
-    'Expected a local date and time (YYYY-MM-DDTHH:MM)',
+    "Expected a local date and time (YYYY-MM-DDTHH:MM)",
   );
 export type LocalDateTime = z.infer<typeof LocalDateTimeSchema>;
 
@@ -35,8 +34,7 @@ const RentalWindowFieldsSchema = z.object({
  * Parse a local datetime string to epoch ms, reading the wall clock as if it
  * were UTC. Done by hand rather than `new Date(value)` so the number is
  * identical on the server and in the browser whatever their timezones are —
- * only the DIFFERENCE between two of these is ever used, so the shared
- * offset cancels out.
+ * the demo intentionally uses that UTC interpretation for storage as well.
  */
 export function localDateTimeToMs(value: string): number {
   // Total by design, returning NaN rather than throwing: Zod runs
@@ -81,11 +79,11 @@ export const RentalWindowSchema = RentalWindowFieldsSchema.refine(
   (w) => rentalHours(w.pickupAt, w.dropoffAt) >= MIN_RENTAL_HOURS,
   {
     message: `Drop-off must be at least ${MIN_RENTAL_HOURS} hour after pick-up`,
-    path: ['dropoffAt'],
+    path: ["dropoffAt"],
   },
 ).refine((w) => rentalDays(w.pickupAt, w.dropoffAt) <= MAX_RENTAL_DAYS, {
   message: `A rental cannot exceed ${MAX_RENTAL_DAYS} days`,
-  path: ['dropoffAt'],
+  path: ["dropoffAt"],
 });
 export type RentalWindow = z.infer<typeof RentalWindowSchema>;
 

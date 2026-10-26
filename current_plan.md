@@ -69,7 +69,7 @@ Local migration/cleanup notes:
   work was in progress; neither was edited as part of this slice.
 - User reviewed/committed this slice as `d8811a1` and authorized slice 2.
 
-## Slice 2 — Local accounts and ownership (complete; awaiting review/commit)
+## Slice 2 — Local accounts and ownership (committed: be6d04b)
 
 Scope:
 - Remove Clerk dependencies, components, middleware, and temporary-key workaround.
@@ -108,11 +108,57 @@ Validation/results (2026-10-26):
 - Unrelated `Handoff_AWS_Architecture.drawio.png` appeared during work and was
   left untouched.
 
+## Slice 3 — Complete booking (complete; awaiting review/commit)
+
+Scope:
+- Date-based vehicle search and shared availability checks, including a 24-hour
+  turnaround after each return and before an already scheduled later rental.
+- Replace date-only booking writes with validated checkout: future UTC times,
+  1-hour–90-day duration, the car's existing branch, extras, and current terms.
+- Lock user/vehicle rows in a transaction; scope retry keys to their owner and
+  return the original booking when the same request is repeated.
+- Recompute pricing against the locked vehicle; reject stale displayed totals.
+  Persist the agreed quote, extras, vehicle and branch labels for confirmation.
+- Enable Reserve, preserve selections through login/signup, coordinate pending
+  quote updates, recover lost responses after reload, and show private confirmation.
+- Remove dormant duplicate booking creation contracts/service code and replace
+  misleading payment/cancellation terms with accurate demo terms.
+- Add concurrency, retry, availability-boundary, validation and redirect tests.
+
+Decisions/limits:
+- All demo times are explicitly UTC. Branch-specific timezone/DST rules and
+  one-way rentals are outside this slice; pickup and return use the listed branch.
+- The return time plus buffer determines availability without a scheduled worker.
+  History and derived rental status remain slice 4; email remains slice 5.
+- The old date-only POST payload is retired. Existing records remain readable
+  and continue to block availability; their data is not invented or reassigned.
+- The additive migration adds nullable checkout metadata and an owner/request-key
+  index. It has been applied locally without reseeding; booking count was 0.
+
+Validation/results (2026-10-26):
+- `pnpm build` and `pnpm lint`: passed for all three packages.
+- `pnpm test`: 5 tests passed, including UTC duration boundaries and safe
+  internal return URLs for login, alongside the authentication regressions.
+- `pnpm test:api`: 16 tests passed against disposable PostgreSQL. Coverage includes
+  competing users, five simultaneous retries yielding one booking, changed-key
+  payload rejection, owner isolation, preserved receipt pricing, invalid/stale
+  checkout inputs, same-day rentals, legacy/cancelled bookings, and the exact
+  turnaround boundary on both sides of a rental. Restart persistence still passes.
+- Chromium checks on an isolated database: search → extras/terms → registration
+  → checkout; simulated response loss → reload → original confirmation without
+  duplication; receipt reload, mobile layout, owner-only confirmation, and search
+  exclusion/reappearance at the 24-hour boundary. No runtime errors or external
+  requests in the exercised flow. These were ad-hoc browser checks; the maintained
+  full-flow browser suite remains part of slice 6.
+- `pnpm dev` started successfully; all 33 non-mutating smoke checks passed.
+- Development database migration preserved its booking count (0 before/after).
+  No inventory seeding, resets, or checkout writes were performed against it.
+- Development/test app processes stopped and disposable test containers removed;
+  the existing development PostgreSQL container remains running.
+- Changes are uncommitted. No further slice will begin before review/authorization.
+
 ## Remaining slices (not started)
 
-3. Complete booking: availability-aware search, 24-hour turnaround, transactional
-   conflict prevention, retry-safe submission, server pricing, stored quote/extras,
-   and a working checkout/confirmation page. Test concurrency and date boundaries.
 4. Booking history/details: owner-scoped summary cards and details, derived rental
    lifecycle, accessible loading/error/empty states, and browser tests.
 5. Confirmation email: persistent delivery queue/retries, local SMTP inbox, and

@@ -26,6 +26,8 @@ for (const path of ['/locations', '/catalog', '/terms', '/geocode?q=Boston']) {
 const filtered = await (await check(bff, '/vehicles?classes=suv')).json();
 assert.ok(filtered.every(v => v.class === 'suv'));
 await check(bff, '/vehicles?minPricePerDay=abc', 400);
+await check(bff, '/vehicles?pickupAt=2027-01-01T10:00&dropoffAt=2027-01-03T10:00');
+await check(bff, '/vehicles?pickupAt=2027-01-01T10:00', 400);
 await check(bff, '/geocode?q=Boston&q=LA', 400);
 await check(bff, '/vehicles/nonexistent', 404);
 await check(bff, '/bookings', 401);
@@ -55,4 +57,8 @@ assert.deepEqual(await (await check(web, '/api/auth/session')).json(), { user: n
 await check(web, '/api/vehicles');
 const accountRedirect = await check(web, '/account', 307, { redirect: 'manual' });
 assert.equal(new URL(accountRedirect.headers.get('location'), web).pathname, '/sign-in');
+const confirmationRedirect = await check(web, '/bookings/nonexistent/confirmation', 307, { redirect: 'manual' });
+const loginUrl = new URL(confirmationRedirect.headers.get('location'), web);
+assert.equal(loginUrl.pathname, '/sign-in');
+assert.equal(loginUrl.searchParams.get('next'), '/bookings/nonexistent/confirmation');
 console.log(`${passed} smoke checks passed. Use a browser to verify client interactions.`);

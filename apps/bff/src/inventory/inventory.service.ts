@@ -6,6 +6,7 @@ import {
   type VehicleFilter,
 } from '@handoff/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import { conflictingWindow } from '../bookings/availability';
 
 /** Internal data access shared by vehicle presentation and quote calculation. */
 @Injectable()
@@ -15,6 +16,12 @@ export class InventoryService {
   async findAll(filter: VehicleFilter = {}): Promise<Vehicle[]> {
     const vehicles = await this.prisma.vehicle.findMany({
       where: {
+        ...(filter.pickupAt &&
+          filter.dropoffAt && {
+            bookings: {
+              none: conflictingWindow(filter.pickupAt, filter.dropoffAt),
+            },
+          }),
         ...(filter.classes?.length && { class: { in: filter.classes } }),
         ...(filter.transmission && { transmission: filter.transmission }),
         ...(filter.minSeats !== undefined && {

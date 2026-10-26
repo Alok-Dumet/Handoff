@@ -1,18 +1,24 @@
-import { z } from 'zod';
+import { z } from "zod";
+import {
+  LocalDateTimeSchema,
+  rentalHours,
+  rentalDays,
+  MAX_RENTAL_DAYS,
+} from "../rental-window/rental-window.schema.js";
 
 /**
  * Shared enums for the vehicle bounded context.
  * Schema-first: these Zod schemas are the source of truth; TypeScript
  * types are derived from them via z.infer so the two can never drift.
  */
-export const TransmissionSchema = z.enum(['automatic', 'manual']);
+export const TransmissionSchema = z.enum(["automatic", "manual"]);
 export type Transmission = z.infer<typeof TransmissionSchema>;
 
 export const VehicleClassSchema = z.enum([
-  'economy',
-  'compact',
-  'premium',
-  'suv',
+  "economy",
+  "compact",
+  "premium",
+  "suv",
 ]);
 export type VehicleClass = z.infer<typeof VehicleClassSchema>;
 
@@ -139,18 +145,37 @@ export type GeocodeResultList = z.infer<typeof GeocodeResultListSchema>;
  * never trusting the client alone. Numerics use z.coerce because query-string
  * params always arrive as strings.
  */
-export const VehicleSortSchema = z.enum(['price_asc', 'price_desc', 'distance']);
+export const VehicleSortSchema = z.enum([
+  "price_asc",
+  "price_desc",
+  "distance",
+]);
 export type VehicleSort = z.infer<typeof VehicleSortSchema>;
 
-export const VehicleFilterSchema = z.object({
-  classes: z.array(VehicleClassSchema).optional(),
-  transmission: TransmissionSchema.optional(),
-  minSeats: z.coerce.number().int().positive().optional(),
-  minPricePerDay: z.coerce.number().nonnegative().optional(),
-  maxPricePerDay: z.coerce.number().nonnegative().optional(),
-  // User anchor for "nearest" — both required together for distance sorting.
-  lat: z.coerce.number().optional(),
-  lng: z.coerce.number().optional(),
-  sort: VehicleSortSchema.optional(),
-});
+export const VehicleFilterSchema = z
+  .object({
+    classes: z.array(VehicleClassSchema).optional(),
+    transmission: TransmissionSchema.optional(),
+    minSeats: z.coerce.number().int().positive().optional(),
+    minPricePerDay: z.coerce.number().nonnegative().optional(),
+    maxPricePerDay: z.coerce.number().nonnegative().optional(),
+    // User anchor for "nearest" — both required together for distance sorting.
+    lat: z.coerce.number().optional(),
+    lng: z.coerce.number().optional(),
+    sort: VehicleSortSchema.optional(),
+    pickupAt: LocalDateTimeSchema.optional(),
+    dropoffAt: LocalDateTimeSchema.optional(),
+  })
+  .refine(
+    (v) =>
+      (!v.pickupAt && !v.dropoffAt) ||
+      (!!v.pickupAt &&
+        !!v.dropoffAt &&
+        rentalHours(v.pickupAt, v.dropoffAt) >= 1 &&
+        rentalDays(v.pickupAt, v.dropoffAt) <= MAX_RENTAL_DAYS),
+    {
+      message: "Choose both times, between 1 hour and 90 days apart",
+      path: ["dropoffAt"],
+    },
+  );
 export type VehicleFilter = z.infer<typeof VehicleFilterSchema>;

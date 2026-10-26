@@ -349,13 +349,46 @@ test('quotes retain sale pricing, extras, rounding and invalid-window validation
   await request(`/quote?${params}`, 404);
 });
 
-test('basic booking persists, keeps the response envelope, and rejects overlaps', async () => {
+async function checkoutInput(
+  vehicleId = 'veh_001',
+  pickupAt = '2027-02-01T10:00',
+  dropoffAt = '2027-02-03T10:00',
+  extra = {},
+) {
+  const vehicle = await request(`/vehicles/${vehicleId}`);
+  const terms = await request('/terms');
+  const extras = {
+    pickupAt,
+    dropoffAt,
+    pickupLocationId: vehicle.pickupLocationId,
+    dropoffLocationId: vehicle.pickupLocationId,
+    addOnIds: ['gps'],
+    protectionPlanId: 'protection_basic',
+    acceptedTermsVersion: terms.version,
+    ...extra,
+  };
+  const params = new URLSearchParams({
+    vehicleId,
+    pickupAt,
+    dropoffAt,
+    protectionPlanId: extras.protectionPlanId,
+  });
+  extras.addOnIds.forEach((id) => params.append('addOnIds', id));
+  const quote = await request(`/quote?${params}`);
+  return {
+    vehicleId,
+    requestKey: randomUUID(),
+    extras,
+    expectedTotalCents: quote.totalCents,
+  };
+}
+
+test('checkout confirms a priced booking, ignores forged identity/prices, and safely replays retries', async () => {
   const input = {
-    vehicleId: 'veh_001',
+    ...(await checkoutInput()),
     customerName: 'Integration Test',
     customerEmail: 'test@example.com',
-    startDate: '2027-02-01',
-    endDate: '2027-02-03',
+    totalCents: 1,
   };
   const response = contracts.BookingCreationResponseSchema.parse(
     await request('/bookings', 201, input, 'POST', aliceCookie),
@@ -363,6 +396,9 @@ test('basic booking persists, keeps the response envelope, and rejects overlaps'
   savedBooking = response.booking;
   assert.equal(savedBooking.customerName, alice.name);
   assert.equal(savedBooking.customerEmail, alice.email);
+  assert.equal(savedBooking.status, 'confirmed');
+  assert.equal(savedBooking.totalCents, input.expectedTotalCents);
+  assert.deepEqual(savedBooking.extras.addOnIds, ['gps']);
   assert.equal(response.nextJourney, null);
   assert.deepEqual(response.alternatives, []);
   assert.deepEqual(
@@ -380,11 +416,28 @@ test('basic booking persists, keeps the response envelope, and rejects overlaps'
       (b) => b.id === savedBooking.id,
     ),
   );
-  await request('/bookings', 409, input, 'POST', aliceCookie);
+  assert.deepEqual(
+    (await request('/bookings', 201, input, 'POST', aliceCookie)).booking,
+    savedBooking,
+  );
+  await request(
+    '/bookings',
+    409,
+    { ...input, requestKey: randomUUID() },
+    'POST',
+    aliceCookie,
+  );
+  await request(
+    '/bookings',
+    409,
+    { ...input, vehicleId: 'veh_002' },
+    'POST',
+    aliceCookie,
+  );
   await request(
     '/bookings',
     400,
-    { ...input, endDate: input.startDate },
+    { ...input, extras: { ...input.extras, dropoffAt: input.extras.pickupAt } },
     'POST',
     aliceCookie,
   );
@@ -392,7 +445,7 @@ test('basic booking persists, keeps the response envelope, and rejects overlaps'
   await request(
     '/bookings',
     404,
-    { ...input, vehicleId: 'missing' },
+    { ...input, requestKey: randomUUID(), vehicleId: 'missing' },
     'POST',
     aliceCookie,
   );
@@ -445,6 +498,191 @@ test('booking access is owner-scoped and never claims legacy bookings by email',
     { Origin: 'https://evil.example' },
   );
   assert.equal(crossOrigin.status, 403);
+});
+
+test('checkout validates time bounds, branch, terms, extras and price before writing', async () => {
+  const valid = await checkoutInput(
+    'veh_003',
+    '2027-03-01T10:00',
+    '2027-03-01T11:00',
+  );
+  for (const [status, changes] of [
+    [400, { pickupAt: '2020-01-01T10:00', dropoffAt: '2020-01-02T10:00' }],
+    [400, { dropoffAt: '2027-03-01T10:59' }],
+    [400, { dropoffAt: '2028-03-01T10:00' }],
+    [400, { pickupAt: '2027-02-30T10:00' }],
+    [400, { pickupLocationId: 'unknown' }],
+    [400, { dropoffLocationId: 'another-branch' }],
+    [400, { addOnIds: ['unknown'] }],
+    [400, { protectionPlanId: 'unknown' }],
+    [400, { acceptedTermsVersion: '' }],
+    [409, { acceptedTermsVersion: 'old-terms' }],
+  ])
+    await request(
+      '/bookings',
+      status,
+      { ...valid, extras: { ...valid.extras, ...changes } },
+      'POST',
+      aliceCookie,
+    );
+  await request(
+    '/bookings',
+    409,
+    { ...valid, expectedTotalCents: 1 },
+    'POST',
+    aliceCookie,
+  );
+  assert.equal(
+    await app
+      .get(PrismaService)
+      .booking.count({ where: { vehicleId: 'veh_003' } }),
+    0,
+  );
+  const booking = (await request('/bookings', 201, valid, 'POST', aliceCookie))
+    .booking;
+  assert.equal(
+    booking.startDate,
+    booking.endDate,
+    'one-hour same-day rental works',
+  );
+  assert.equal(booking.quote.days, 1);
+  await app
+    .get(PrismaService)
+    .vehicle.update({
+      where: { id: valid.vehicleId },
+      data: { pricePerDay: 999, salePricePerDay: null },
+    });
+  assert.deepEqual(
+    await request(
+      `/bookings/${booking.id}`,
+      200,
+      undefined,
+      'GET',
+      aliceCookie,
+    ),
+    booking,
+  );
+  assert.deepEqual(
+    (await request('/bookings', 201, valid, 'POST', aliceCookie)).booking,
+    booking,
+    'replay returns original price',
+  );
+});
+
+test('availability enforces the full turnaround on both sides, including legacy and cancelled bookings', async () => {
+  const hasCar = async (id, pickupAt, dropoffAt) =>
+    (
+      await request(`/vehicles?${new URLSearchParams({ pickupAt, dropoffAt })}`)
+    ).some((v) => v.id === id);
+  assert.equal(
+    await hasCar('veh_001', '2027-02-04T09:59', '2027-02-05T10:00'),
+    false,
+  );
+  assert.equal(
+    await hasCar('veh_001', '2027-02-04T10:00', '2027-02-05T10:00'),
+    true,
+  );
+  assert.equal(
+    await hasCar('veh_001', '2027-01-30T10:00', '2027-01-31T10:01'),
+    false,
+  );
+  assert.equal(
+    await hasCar('veh_001', '2027-01-30T10:00', '2027-01-31T10:00'),
+    true,
+  );
+  for (const [start, end, status] of [
+    ['2027-02-04T09:59', '2027-02-05T10:00', 409],
+    ['2027-01-30T10:00', '2027-01-31T10:01', 409],
+    ['2027-01-30T10:00', '2027-01-31T10:00', 201],
+    ['2027-02-04T10:00', '2027-02-05T10:00', 201],
+  ])
+    await request(
+      '/bookings',
+      status,
+      await checkoutInput('veh_001', start, end),
+      'POST',
+      aliceCookie,
+    );
+  assert.equal(
+    await hasCar('veh_002', '2027-05-03T23:59', '2027-05-05T00:00'),
+    false,
+    'legacy return buffer',
+  );
+  assert.equal(
+    await hasCar('veh_002', '2027-05-04T00:00', '2027-05-05T00:00'),
+    true,
+  );
+  await app
+    .get(PrismaService)
+    .booking.update({
+      where: { id: 'legacy-unowned' },
+      data: { status: 'cancelled' },
+    });
+  assert.equal(
+    await hasCar('veh_002', '2027-05-01T00:00', '2027-05-03T00:00'),
+    true,
+  );
+  await request('/vehicles?pickupAt=2027-05-01T10:00', 400);
+  await request(
+    '/vehicles?pickupAt=2027-05-01T10:00&dropoffAt=2027-05-01T09:00',
+    400,
+  );
+});
+
+test('concurrent users cannot double-book and concurrent retries create one record', async () => {
+  const input = await checkoutInput(
+    'veh_004',
+    '2027-06-01T10:00',
+    '2027-06-02T10:00',
+  );
+  const responses = await Promise.all(
+    [aliceCookie, bobCookie].map((cookie) =>
+      rawRequest(
+        '/bookings',
+        { ...input, requestKey: randomUUID() },
+        'POST',
+        cookie,
+      ),
+    ),
+  );
+  assert.deepEqual(responses.map((r) => r.status).sort(), [201, 409]);
+  assert.equal(
+    await app
+      .get(PrismaService)
+      .booking.count({ where: { vehicleId: 'veh_004' } }),
+    1,
+  );
+  const retry = await checkoutInput(
+    'veh_006',
+    '2027-06-01T10:00',
+    '2027-06-02T10:00',
+  );
+  const replay = await Promise.all(
+    Array.from({ length: 5 }, () =>
+      request('/bookings', 201, retry, 'POST', aliceCookie),
+    ),
+  );
+  assert.equal(new Set(replay.map((r) => r.booking.id)).size, 1);
+  assert.equal(
+    await app
+      .get(PrismaService)
+      .booking.count({ where: { vehicleId: 'veh_006' } }),
+    1,
+  );
+  const otherUser = {
+    ...retry,
+    extras: {
+      ...retry.extras,
+      pickupAt: '2027-06-05T10:00',
+      dropoffAt: '2027-06-06T10:00',
+    },
+  };
+  const other = await request('/bookings', 201, otherUser, 'POST', bobCookie);
+  assert.notEqual(
+    other.booking.id,
+    replay[0].booking.id,
+    'request keys are scoped to each owner',
+  );
 });
 
 test('removed mock and duplicate endpoints return 404', async () => {

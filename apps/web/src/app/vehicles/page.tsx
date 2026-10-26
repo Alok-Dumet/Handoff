@@ -21,7 +21,7 @@ export default async function VehiclesPage({
 
   let vehicles;
   try {
-    vehicles = await getVehicles(filter);
+    vehicles = parsed.success ? await getVehicles(filter) : [];
   } catch {
     vehicles = null;
   }
@@ -37,8 +37,65 @@ export default async function VehiclesPage({
         </p>
 
         <div className="mt-8">
+          <form
+            action="/vehicles"
+            className="mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-white/15 p-4"
+          >
+            {Object.entries(params)
+              .filter(([key]) => key !== "pickupAt" && key !== "dropoffAt")
+              .flatMap(([key, value]) =>
+                (Array.isArray(value) ? value : value ? [value] : []).map(
+                  (v, index) => (
+                    <input
+                      type="hidden"
+                      key={`${key}-${index}`}
+                      name={key}
+                      value={v}
+                    />
+                  ),
+                ),
+              )}
+            <label className="text-sm text-white/70">
+              Pick-up (UTC)
+              <input
+                type="datetime-local"
+                name="pickupAt"
+                required
+                defaultValue={
+                  typeof params.pickupAt === "string" ? params.pickupAt : ""
+                }
+                className="mt-1 block rounded border border-white/20 bg-black p-2 [color-scheme:dark]"
+              />
+            </label>
+            <label className="text-sm text-white/70">
+              Return (UTC)
+              <input
+                type="datetime-local"
+                name="dropoffAt"
+                required
+                defaultValue={
+                  typeof params.dropoffAt === "string" ? params.dropoffAt : ""
+                }
+                className="mt-1 block rounded border border-white/20 bg-black p-2 [color-scheme:dark]"
+              />
+            </label>
+            <button className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black">
+              Find available cars
+            </button>
+            <p className="w-full text-xs text-white/50">
+              Cars become available 24 hours after their scheduled return. All
+              demo times are UTC.
+            </p>
+          </form>
           <VehicleFilters />
         </div>
+
+        {!parsed.success && (
+          <p role="alert" className="mt-4 text-red-300">
+            Check your filters and choose both times, between 1 hour and 90 days
+            apart.
+          </p>
+        )}
 
         {vehicles === null ? (
           <p className="mt-10 rounded-xl border border-white/10 bg-white/5 px-5 py-8 text-center text-white/50">
@@ -51,7 +108,18 @@ export default async function VehiclesPage({
         ) : (
           <div className="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {vehicles.map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} />
+              <VehicleCard
+                key={vehicle.id}
+                vehicle={vehicle}
+                rentalQuery={
+                  filter.pickupAt && filter.dropoffAt
+                    ? new URLSearchParams({
+                        pickupAt: filter.pickupAt,
+                        dropoffAt: filter.dropoffAt,
+                      }).toString()
+                    : ""
+                }
+              />
             ))}
           </div>
         )}

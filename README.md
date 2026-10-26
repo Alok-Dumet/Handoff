@@ -86,7 +86,7 @@ pnpm test:api
 pnpm test:smoke
 ```
 
-- `test`: password hashing and session-cookie regression tests; no database needed.
+- `test`: password/session, rental-time and safe login-return tests; no database needed.
 - `test:api`: builds the API/contracts, starts a disposable PostgreSQL 17 container
   on a random local port, applies migrations, seeds, tests routes and persistence,
   and removes the test container/volume. Requires Docker; it does not use your database.
@@ -96,12 +96,24 @@ pnpm test:smoke
 
 Browsing, filtering, location search, rental pricing, add-ons, and terms selection
 work. Local registration/login/logout, persistent sessions, account details, and
-owner-scoped booking APIs are implemented. Checkout submission, history UI,
-confirmation email, and the 24-hour turnaround rule are not implemented yet.
-The Reserve button remains explicitly disabled.
+owner-scoped booking APIs are implemented. Choose dates on `/vehicles`, select a
+car and optional extras, accept the terms, and reserve it. Login/registration
+preserves those selections. A successful booking opens a private confirmation
+page with its saved price breakdown. No payment is collected.
 
-The basic booking API is preserved for demo use, including its existing overlap
-check; concurrency-safe booking and retry protection are scheduled for slice 3.
+Booking creation now requires the full checkout payload (see the API README);
+the old date-only write format is retired. Vehicle locking prevents concurrent
+double-booking, and owner-scoped request keys make retries safe. Search and checkout
+both reserve the interval through **24 hours after return**, including existing
+legacy bookings. No scheduler is needed to make cars available again.
+All demo times are explicitly **UTC**, and pickup/return use the car's listed branch.
+
+For an existing slice-2 checkout, run `pnpm --filter @handoff/bff db:migrate`
+before starting the app. The migration only adds nullable checkout metadata and
+a unique request-key index; it does not reset or seed data.
+
+History UI, confirmation email, and full-stack Docker Compose remain future slices.
+Save the confirmation page URL until history is available.
 Booking routes now require a session and return only the caller's bookings.
 Customer identity is taken from the session, never the request body. Existing
 anonymous bookings remain stored but are not assigned to newly registered users,

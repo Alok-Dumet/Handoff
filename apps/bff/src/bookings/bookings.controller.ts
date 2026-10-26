@@ -12,7 +12,7 @@ import {
 import {
   type Booking,
   type BookingCreationResponse,
-  CreateUserBookingSchema,
+  CheckoutSchema,
 } from '@handoff/contracts';
 import { BookingsService } from './bookings.service';
 import { SessionGuard, type AuthenticatedRequest } from '../auth/session.guard';
@@ -35,7 +35,7 @@ export class BookingsController {
     @Body() body: unknown,
     @Req() request: AuthenticatedRequest,
   ): Promise<BookingCreationResponse> {
-    const result = CreateUserBookingSchema.safeParse(body);
+    const result = CheckoutSchema.safeParse(body);
     if (!result.success) {
       throw new BadRequestException(result.error.issues);
     }

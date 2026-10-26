@@ -36,6 +36,8 @@ function filterToParams(filter: VehicleFilter): URLSearchParams {
   if (filter.lat !== undefined) params.set("lat", String(filter.lat));
   if (filter.lng !== undefined) params.set("lng", String(filter.lng));
   if (filter.sort) params.set("sort", filter.sort);
+  if (filter.pickupAt) params.set("pickupAt", filter.pickupAt);
+  if (filter.dropoffAt) params.set("dropoffAt", filter.dropoffAt);
   return params;
 }
 

@@ -3,6 +3,7 @@ import {
   type Quote,
   type QuoteLine,
   type QuoteRequest,
+  type Vehicle,
   CENTS_PER_DOLLAR,
   formatUsd,
   rentalDays,
@@ -33,6 +34,12 @@ export class PricingService {
    */
   async quote(request: QuoteRequest): Promise<Quote> {
     const vehicle = await this.inventory.findOne(request.vehicleId);
+    return this.forVehicle(request, vehicle);
+  }
+
+  // Checkout supplies the vehicle read under its transaction's row lock.
+  // This avoids acquiring a second connection while other bookings wait.
+  forVehicle(request: QuoteRequest, vehicle: Vehicle): Quote {
     const days = rentalDays(request.pickupAt, request.dropoffAt);
 
     // Charge the sale price when one applies — same rule the display labels

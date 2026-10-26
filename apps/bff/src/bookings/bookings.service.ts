@@ -1,26 +1,33 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
   BookingDetailSchema,
-  BookingListSchema,
   BookingSchema,
-  formatUsd,
+  VehicleSchema,
   localDateTimeToMs,
   type Booking,
   type BookingDetail,
-  type CreateUserBooking,
+  type Checkout,
   type AccountUser,
-  type CreateBookingWithExtras,
 } from '@handoff/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Booking as StoredBooking } from '../generated/prisma/client';
+import { PricingService } from '../pricing/pricing.service';
+import { CatalogService } from '../catalog/catalog.service';
+import { conflictingWindow } from './availability';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pricing: PricingService,
+    private readonly catalog: CatalogService,
+  ) {}
 
   async findAll(userId: string): Promise<Booking[]> {
     const bookings = await this.prisma.booking.findMany({
@@ -28,177 +35,151 @@ export class BookingsService {
       orderBy: { createdAt: 'desc' },
       take: 10,
     });
-
-    return BookingListSchema.parse(bookings.map(toContractBooking));
+    return bookings.map(toContractBooking);
   }
 
-  async findOne(id: string, userId: string): Promise<Booking> {
+  async findOne(id: string, userId: string): Promise<Booking | BookingDetail> {
     const booking = await this.prisma.booking.findFirst({
       where: { id, userId },
     });
-
-    if (!booking) {
-      throw new NotFoundException({ message: 'Booking not found' });
-    }
-
-    return BookingSchema.parse(toContractBooking(booking));
+    if (!booking) throw new NotFoundException('Booking not found');
+    return toContractBooking(booking);
   }
 
-  async create(input: CreateUserBooking, user: AccountUser): Promise<Booking> {
-    const startDate = new Date(input.startDate);
-    const endDate = new Date(input.endDate);
-    const vehicle = await this.prisma.vehicle.findUnique({
-      where: { id: input.vehicleId },
-      select: { id: true },
-    });
-
-    if (!vehicle) {
-      throw new NotFoundException(`Vehicle ${input.vehicleId} not found`);
-    }
-
-    const conflictingBooking = await this.prisma.booking.findFirst({
-      where: {
-        vehicleId: input.vehicleId,
-        status: { in: ['pending', 'confirmed'] },
-        startDate: { lt: endDate },
-        endDate: { gt: startDate },
-      },
-      select: { id: true },
-    });
-
-    if (conflictingBooking) {
-      throw new ConflictException('Vehicle is unavailable for those dates');
-    }
-
-    const booking = await this.prisma.booking.create({
-      data: {
-        id: `booking_${randomUUID()}`,
-        vehicleId: input.vehicleId,
-        userId: user.id,
-        customerName: user.name,
-        customerEmail: user.email,
-        startDate,
-        endDate,
-      },
-    });
-
-    return BookingSchema.parse(toContractBooking(booking));
-  }
-
-  /**
-   * Create a booking from the purchase page, storing the rental window,
-   * selected extras, and the totals the BFF computed.
-   *
-   * The overlap check uses the precise pick-up/drop-off timestamps rather
-   * than whole days: a car returned at 10:00 is genuinely available to
-   * someone collecting it at 14:00 the same day, and blocking that would
-   * lose real bookings.
-   */
-  async createWithExtras(
-    input: CreateBookingWithExtras,
-    user: AccountUser,
-  ): Promise<BookingDetail> {
-    const { extras } = input;
-    const pickupAt = new Date(localDateTimeToMs(extras.pickupAt));
-    const dropoffAt = new Date(localDateTimeToMs(extras.dropoffAt));
-
-    const vehicle = await this.prisma.vehicle.findUnique({
-      where: { id: input.vehicleId },
-      select: { id: true },
-    });
-    if (!vehicle) {
-      throw new NotFoundException(`Vehicle ${input.vehicleId} not found`);
-    }
-
-    // Both branches must exist. Validated as non-empty strings upstream, but
-    // only the database can say whether they name real locations.
-    const locationIds = [
-      ...new Set([extras.pickupLocationId, extras.dropoffLocationId]),
-    ];
-    const found = await this.prisma.location.findMany({
-      where: { id: { in: locationIds } },
-      select: { id: true },
-    });
-    if (found.length !== locationIds.length) {
-      const known = new Set(found.map((l) => l.id));
-      const missing = locationIds.filter((id) => !known.has(id));
-      throw new NotFoundException(`Unknown location(s): ${missing.join(', ')}`);
-    }
-
-    const conflict = await this.prisma.booking.findFirst({
-      where: {
-        vehicleId: input.vehicleId,
-        status: { in: ['pending', 'confirmed'] },
-        // Compare against the precise window where one was recorded, and
-        // fall back to the date-only columns for older bookings.
-        AND: [
-          {
-            OR: [
-              { pickupAt: { lt: dropoffAt } },
-              { pickupAt: null, startDate: { lt: dropoffAt } },
-            ],
+  async create(input: Checkout, user: AccountUser): Promise<BookingDetail> {
+    // Normalize equivalent selections before hashing. Identity and authoritative
+    // prices never come from the request body.
+    const extras = {
+      ...input.extras,
+      addOnIds: [...new Set(input.extras.addOnIds)].sort(),
+    };
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          vehicleId: input.vehicleId,
+          expectedTotalCents: input.expectedTotalCents,
+          extras,
+        }),
+      )
+      .digest('hex');
+    return this.prisma.$transaction(
+      async (tx) => {
+        // Serialize retries even if a key is reused for a different vehicle.
+        // Every booking writer takes the user lock before the vehicle lock.
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+        const previous = await tx.booking.findUnique({
+          where: {
+            userId_requestKey: {
+              userId: user.id,
+              requestKey: input.requestKey,
+            },
           },
-          {
-            OR: [
-              { dropoffAt: { gt: pickupAt } },
-              { dropoffAt: null, endDate: { gt: pickupAt } },
-            ],
+        });
+        if (previous) {
+          if (previous.requestHash !== requestHash)
+            throw new ConflictException(
+              'This booking request was already used with different selections. Start a new booking.',
+            );
+          return BookingDetailSchema.parse(toContractBooking(previous));
+        }
+        // Concurrent users wait on this row, then see the committed booking.
+        await tx.$queryRaw`SELECT id FROM vehicles WHERE id = ${input.vehicleId} FOR UPDATE`;
+        const vehicle = await tx.vehicle.findUnique({
+          where: { id: input.vehicleId },
+          include: { location: true },
+        });
+        if (!vehicle) throw new NotFoundException('Vehicle not found');
+        const pickupAt = new Date(localDateTimeToMs(extras.pickupAt));
+        const dropoffAt = new Date(localDateTimeToMs(extras.dropoffAt));
+        if (pickupAt.getTime() <= Date.now())
+          throw new BadRequestException('Pick-up must be in the future (UTC).');
+        if (
+          extras.pickupLocationId !== vehicle.locationId ||
+          extras.dropoffLocationId !== vehicle.locationId
+        )
+          throw new BadRequestException(
+            'Pick up and return this car at its listed branch.',
+          );
+        if (extras.acceptedTermsVersion !== this.catalog.getTerms().version)
+          throw new ConflictException(
+            'Rental terms have changed. Refresh and accept the current terms.',
+          );
+        const conflict = await tx.booking.findFirst({
+          where: {
+            vehicleId: vehicle.id,
+            ...conflictingWindow(extras.pickupAt, extras.dropoffAt),
           },
-        ],
+          select: { id: true },
+        });
+        if (conflict)
+          throw new ConflictException(
+            'This car is unavailable for those times, including its 24-hour return turnaround. Choose another car or different times.',
+          );
+        const quote = this.pricing.forVehicle(
+          {
+            vehicleId: vehicle.id,
+            ...extras,
+          },
+          VehicleSchema.parse(vehicle),
+        );
+        if (input.expectedTotalCents !== quote.totalCents)
+          throw new ConflictException(
+            'The price has changed. Refresh to review the new total before booking.',
+          );
+        const checkoutSnapshot = {
+          extras,
+          quote,
+          vehicleTitle: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+          pickupLocationName: vehicle.location.name,
+          pickupAddress: vehicle.location.address,
+          subtotalCents: quote.subtotalCents,
+          taxCents: quote.taxCents,
+          totalCents: quote.totalCents,
+          totalLabel: quote.totalLabel,
+        };
+        const booking = await tx.booking.create({
+          data: {
+            id: `booking_${randomUUID()}`,
+            vehicleId: vehicle.id,
+            userId: user.id,
+            customerName: user.name,
+            customerEmail: user.email,
+            status: 'confirmed',
+            startDate: pickupAt,
+            endDate: dropoffAt,
+            pickupAt,
+            dropoffAt,
+            pickupLocationId: extras.pickupLocationId,
+            dropoffLocationId: extras.dropoffLocationId,
+            addOnIds: extras.addOnIds,
+            protectionPlanId: extras.protectionPlanId,
+            acceptedTermsVersion: extras.acceptedTermsVersion,
+            subtotalCents: quote.subtotalCents,
+            taxCents: quote.taxCents,
+            totalCents: quote.totalCents,
+            requestKey: input.requestKey,
+            requestHash,
+            checkoutSnapshot,
+          },
+        });
+        return BookingDetailSchema.parse(toContractBooking(booking));
       },
-      select: { id: true },
-    });
-    if (conflict) {
-      throw new ConflictException('Vehicle is unavailable for those dates');
-    }
-
-    const booking = await this.prisma.booking.create({
-      data: {
-        id: `booking_${randomUUID()}`,
-        vehicleId: input.vehicleId,
-        userId: user.id,
-        customerName: user.name,
-        customerEmail: user.email,
-        startDate: new Date(input.startDate),
-        endDate: new Date(input.endDate),
-        pickupLocationId: extras.pickupLocationId,
-        dropoffLocationId: extras.dropoffLocationId,
-        pickupAt,
-        dropoffAt,
-        addOnIds: extras.addOnIds,
-        protectionPlanId: extras.protectionPlanId,
-        acceptedTermsVersion: extras.acceptedTermsVersion,
-        subtotalCents: input.subtotalCents,
-        taxCents: input.taxCents,
-        totalCents: input.totalCents,
-      },
-    });
-
-    return BookingDetailSchema.parse({
-      ...toContractBooking(booking),
-      extras,
-      subtotalCents: input.subtotalCents,
-      taxCents: input.taxCents,
-      totalCents: input.totalCents,
-      totalLabel: formatUsd(input.totalCents),
-    });
+      { maxWait: 10000, timeout: 15000, isolationLevel: 'ReadCommitted' },
+    );
   }
 }
 
-function toContractBooking(booking: {
-  id: string;
-  vehicleId: string;
-  customerName: string;
-  customerEmail: string;
-  startDate: Date;
-  endDate: Date;
-  status: string;
-  createdAt: Date;
-}) {
-  return {
+function toContractBooking(booking: StoredBooking): Booking | BookingDetail {
+  const base = BookingSchema.parse({
     ...booking,
     startDate: booking.startDate.toISOString().slice(0, 10),
     endDate: booking.endDate.toISOString().slice(0, 10),
     createdAt: booking.createdAt.toISOString(),
-  };
+  });
+  return booking.checkoutSnapshot
+    ? BookingDetailSchema.parse({
+        ...base,
+        ...(booking.checkoutSnapshot as object),
+      })
+    : base;
 }

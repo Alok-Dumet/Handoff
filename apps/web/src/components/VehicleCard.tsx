@@ -3,11 +3,15 @@ import Link from "next/link";
 import type { VehicleSummary } from "@handoff/contracts";
 import { CLASS_IMAGE } from "@/lib/vehicle-images";
 
-export default function VehicleCard({ vehicle }: { vehicle: VehicleSummary }) {
+export default function VehicleCard({
+  vehicle,
+  rentalQuery = "",
+}: {
+  vehicle: VehicleSummary;
+  rentalQuery?: string;
+}) {
   return (
-    <div
-      className="flex flex-col block overflow-hidden rounded-xl border border-white/10 bg-white/5 transition-colors hover:border-white/25 gap-4"
-    >
+    <div className="flex flex-col block overflow-hidden rounded-xl border border-white/10 bg-white/5 transition-colors hover:border-white/25 gap-4">
       <div className="relative aspect-[4/3] bg-black/40">
         <Image
           src={CLASS_IMAGE[vehicle.class]}
@@ -64,7 +68,7 @@ export default function VehicleCard({ vehicle }: { vehicle: VehicleSummary }) {
           </div>
         </dl>
         <Link
-          href={`/vehicles/${vehicle.id}`}
+          href={`/vehicles/${vehicle.id}${rentalQuery ? `?${rentalQuery}` : ""}`}
           className="block overflow-hidden rounded-xl border border-white/50 bg-red-500/40 transition-colors hover:border-white/100 text-center tracking-tight"
         >
           Check Out

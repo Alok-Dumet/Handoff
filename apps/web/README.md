@@ -32,9 +32,17 @@ See the root README for database and backend startup.
 ## Structure
 
 - `src/app/page.tsx` - landing page.
-- `src/app/vehicles/page.tsx` - vehicle listing and filters.
-- `src/app/vehicles/[id]/page.tsx` - rental quote, add-ons, and terms. Reservation submission is unfinished.
+- `src/app/vehicles/page.tsx` - date-based availability search and filters.
+- `src/app/vehicles/[id]/page.tsx` - rental quote, add-ons, terms, and checkout.
+- `src/app/bookings/[id]/confirmation/page.tsx` - owner-only saved confirmation.
 - `src/app/sign-in` and `src/app/sign-up` - local account forms.
 - `src/app/account` - private account details; redirects guests to sign-in.
 - `src/lib/session.ts` - server-side, no-store session lookup.
 - `src/components/VehicleCard.tsx` - presentational vehicle card.
+
+Checkout preserves selections through login/registration. A shared pending state
+prevents submission while dates/extras are repriced. Request keys persist in the
+tab's session storage so a lost response can be retried after reload without a
+duplicate booking. The API remains authoritative for ownership, availability,
+price, and retries. All times are UTC and rentals return to their pickup branch.
+Email delivery and history pages are deferred to later slices.

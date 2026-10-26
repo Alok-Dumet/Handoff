@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useRentalSelection } from "./RentalSelection";
 import type { Location } from "@handoff/contracts";
 import {
   MAX_RENTAL_DAYS,
@@ -27,12 +28,11 @@ export default function RentalWindowPicker({
   defaultPickupLocationId: string;
 }) {
   const router = useRouter();
+  const { updating: pending, update: startTransition } = useRentalSelection();
   const searchParams = useSearchParams();
 
-  const pickupLocationId =
-    searchParams.get("pickupLocationId") ?? defaultPickupLocationId;
-  const dropoffLocationId =
-    searchParams.get("dropoffLocationId") ?? pickupLocationId;
+  const pickupLocationId = defaultPickupLocationId;
+  const dropoffLocationId = defaultPickupLocationId;
   const pickupAt = searchParams.get("pickupAt") ?? "";
   const dropoffAt = searchParams.get("dropoffAt") ?? "";
 
@@ -45,7 +45,9 @@ export default function RentalWindowPicker({
         params.set(key, value);
       }
     }
-    router.replace(`?${params.toString()}`, { scroll: false });
+    startTransition(() =>
+      router.replace(`?${params.toString()}`, { scroll: false }),
+    );
   };
 
   // Validate through the same contract the server uses, so the message the
@@ -74,6 +76,9 @@ export default function RentalWindowPicker({
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-5">
+      <p className="text-sm text-white/60">
+        All times are UTC. Pick up and return at this car&apos;s branch.
+      </p>
       <div className="grid gap-5 sm:grid-cols-2">
         {/* Pick Up */}
         <div className="flex flex-col gap-2">
@@ -86,20 +91,24 @@ export default function RentalWindowPicker({
           <select
             id="pickup-location"
             value={pickupLocationId}
+            disabled
             onChange={(e) => update({ pickupLocationId: e.target.value })}
             className={fieldSx}
           >
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.name}
-              </option>
-            ))}
+            {locations
+              .filter((loc) => loc.id === defaultPickupLocationId)
+              .map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}
+                </option>
+              ))}
           </select>
           <label className="sr-only" htmlFor="pickup-at">
             Pick-up date and time
           </label>
           <input
             id="pickup-at"
+            disabled={pending}
             type="datetime-local"
             value={pickupAt}
             onChange={(e) => update({ pickupAt: e.target.value })}
@@ -118,20 +127,24 @@ export default function RentalWindowPicker({
           <select
             id="dropoff-location"
             value={dropoffLocationId}
+            disabled
             onChange={(e) => update({ dropoffLocationId: e.target.value })}
             className={fieldSx}
           >
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.name}
-              </option>
-            ))}
+            {locations
+              .filter((loc) => loc.id === defaultPickupLocationId)
+              .map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}
+                </option>
+              ))}
           </select>
           <label className="sr-only" htmlFor="dropoff-at">
             Drop-off date and time
           </label>
           <input
             id="dropoff-at"
+            disabled={pending}
             type="datetime-local"
             // Can't end before it starts — the contract enforces this too, but
             // the native picker should not offer invalid dates in the first place.

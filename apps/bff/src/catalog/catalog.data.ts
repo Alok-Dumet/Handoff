@@ -99,50 +99,21 @@ export const PURCHASE_CATALOG: PurchaseCatalog = PurchaseCatalogSchema.parse({
 });
 
 export const RENTAL_TERMS: RentalTerms = RentalTermsSchema.parse({
-  version: '2026-08-01',
+  version: '2026-10-27',
   summary:
-    'By reserving, you agree to HandOff’s rental terms, including the ' +
-    'driver, fuel, mileage, and cancellation conditions below.',
+    'This is a demo rental. Reserving saves your selected car, times, extras, and quoted total. No payment is collected.',
   sections: [
     {
-      heading: 'Driver requirements',
-      body:
-        'The primary driver must be at least 21 years old and hold a valid ' +
-        'driver’s licence held for a minimum of 12 months. Drivers under ' +
-        '25 may incur a young-driver surcharge collected at the counter. A ' +
-        'credit card in the primary driver’s name is required at pick-up.',
+      heading: 'Pick-up and return',
+      body: 'Pick up and return the car at its listed branch. All times shown are UTC. Rentals last between one hour and 90 days, with partial days billed as full days in the quote.',
     },
     {
-      heading: 'Fuel and mileage',
-      body:
-        'Vehicles are supplied with a full tank and must be returned full ' +
-        'unless prepaid fuel is purchased. Mileage is unlimited within the ' +
-        'United States. Refuelling by HandOff is charged at the posted rate ' +
-        'plus a service fee.',
+      heading: 'Availability',
+      body: 'Your reservation is confirmed when you receive a booking reference. The scheduled return counts as the return in this demo, followed by a 24-hour preparation period before the next rental.',
     },
     {
-      heading: 'Cancellation and no-show',
-      body:
-        'Reservations may be cancelled free of charge up to 24 hours before ' +
-        'the scheduled pick-up. Cancellations inside 24 hours, and no-shows, ' +
-        'are charged one rental day. Refunds are returned to the original ' +
-        'payment method within 5–10 business days.',
-    },
-    {
-      heading: 'Late return and extensions',
-      body:
-        'A grace period of 29 minutes applies. Beyond that, each additional ' +
-        'hour is charged at one quarter of the daily rate, up to a maximum of ' +
-        'one full day. Extensions must be arranged before the scheduled ' +
-        'drop-off time.',
-    },
-    {
-      heading: 'Prohibited use',
-      body:
-        'Vehicles may not be driven outside the United States, used for ' +
-        'ride-hailing or delivery services, taken off paved roads, or ' +
-        'operated by anyone not listed on the rental agreement. Smoking in ' +
-        'the vehicle incurs a cleaning fee.',
+      heading: 'Demo reservations',
+      body: 'Prices, optional extras, and protection plans illustrate a rental booking; they do not purchase real vehicles, equipment, or insurance. Cancellation, extensions, and payment collection are not offered.',
     },
   ],
 });

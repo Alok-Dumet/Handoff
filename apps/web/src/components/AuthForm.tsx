@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { LoginSchema, RegisterSchema } from "@handoff/contracts";
 
-export default function AuthForm({ mode }: { mode: "login" | "register" }) {
+export default function AuthForm({
+  mode,
+  returnTo = "/vehicles",
+}: {
+  mode: "login" | "register";
+  returnTo?: string;
+}) {
   const router = useRouter();
   const register = mode === "register";
   const [name, setName] = useState("");
@@ -52,7 +58,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
         setError(message);
         return;
       }
-      router.replace("/vehicles");
+      router.replace(returnTo);
       router.refresh();
     } catch {
       setError("We couldn't reach the server. Please try again.");
@@ -149,7 +155,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
       <p className="mt-5 text-center text-sm text-white/60">
         {register ? "Already have an account? " : "New to HandOff? "}
         <Link
-          href={register ? "/sign-in" : "/sign-up"}
+          href={`${register ? "/sign-in" : "/sign-up"}?next=${encodeURIComponent(returnTo)}`}
           className="text-white underline underline-offset-4"
         >
           {register ? "Log in" : "Create an account"}

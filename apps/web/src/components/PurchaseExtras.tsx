@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useRentalSelection } from "./RentalSelection";
 import type { PurchaseCatalog, RentalTerms } from "@handoff/contracts";
 import { formatUsd } from "@handoff/contracts";
 
@@ -19,6 +20,7 @@ export default function PurchaseExtras({
   terms: RentalTerms;
 }) {
   const router = useRouter();
+  const { updating: pending, update: startTransition } = useRentalSelection();
   const searchParams = useSearchParams();
 
   const selectedAddOns = new Set(searchParams.getAll("addOnIds"));
@@ -29,7 +31,9 @@ export default function PurchaseExtras({
   const replaceParams = (mutate: (p: URLSearchParams) => void) => {
     const params = new URLSearchParams(searchParams.toString());
     mutate(params);
-    router.replace(`?${params.toString()}`, { scroll: false });
+    startTransition(() =>
+      router.replace(`?${params.toString()}`, { scroll: false }),
+    );
   };
 
   const toggleAddOn = (id: string) => {
@@ -64,7 +68,10 @@ export default function PurchaseExtras({
   return (
     <>
       {/* Protection plans — single select */}
-      <fieldset className="rounded-xl border border-white/10 bg-white/5 p-5">
+      <fieldset
+        disabled={pending}
+        className="rounded-xl border border-white/10 bg-white/5 p-5"
+      >
         <legend className="px-1 text-xs font-medium uppercase tracking-wide text-white/40">
           Protection plan
         </legend>
@@ -125,7 +132,10 @@ export default function PurchaseExtras({
       </fieldset>
 
       {/* Add-ons — multi select */}
-      <fieldset className="rounded-xl border border-white/10 bg-white/5 p-5">
+      <fieldset
+        disabled={pending}
+        className="rounded-xl border border-white/10 bg-white/5 p-5"
+      >
         <legend className="px-1 text-xs font-medium uppercase tracking-wide text-white/40">
           Add-ons
         </legend>
@@ -202,6 +212,7 @@ export default function PurchaseExtras({
           <input
             type="checkbox"
             checked={termsAccepted}
+            disabled={pending}
             onChange={toggleTerms}
             className="mt-0.5 accent-white"
           />
