@@ -14,12 +14,15 @@ import {
   type BookingDetail,
   type Checkout,
   type AccountUser,
+  type BookingHistory,
+  type BookingEmail,
 } from '@handoff/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import type { Booking as StoredBooking } from '../generated/prisma/client';
 import { PricingService } from '../pricing/pricing.service';
 import { CatalogService } from '../catalog/catalog.service';
 import { conflictingWindow } from './availability';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class BookingsService {
@@ -27,15 +30,35 @@ export class BookingsService {
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly catalog: CatalogService,
+    private readonly email: EmailService,
   ) {}
 
-  async findAll(userId: string): Promise<Booking[]> {
+  async findAll(userId: string, cursor?: string): Promise<BookingHistory> {
+    const after = cursor
+      ? await this.prisma.booking.findFirst({
+          where: { id: cursor, userId },
+          select: { id: true, createdAt: true },
+        })
+      : null;
+    if (cursor && !after)
+      throw new BadRequestException('Invalid history cursor');
     const bookings = await this.prisma.booking.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
+      where: {
+        userId,
+        ...(after && {
+          OR: [
+            { createdAt: { lt: after.createdAt } },
+            { createdAt: after.createdAt, id: { lt: after.id } },
+          ],
+        }),
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 11,
     });
-    return bookings.map(toContractBooking);
+    return {
+      items: bookings.slice(0, 10).map(toContractBooking),
+      nextCursor: bookings.length > 10 ? bookings[9].id : null,
+    };
   }
 
   async findOne(id: string, userId: string): Promise<Booking | BookingDetail> {
@@ -162,10 +185,33 @@ export class BookingsService {
             checkoutSnapshot,
           },
         });
-        return BookingDetailSchema.parse(toContractBooking(booking));
+        const detail = BookingDetailSchema.parse(toContractBooking(booking));
+        await this.email.queue(tx, detail);
+        return detail;
       },
       { maxWait: 10000, timeout: 15000, isolationLevel: 'ReadCommitted' },
     );
+  }
+
+  async emailStatus(id: string, userId: string): Promise<BookingEmail> {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, userId },
+      select: {
+        confirmationEmail: { select: { sentAt: true, lastError: true } },
+      },
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    const email = booking.confirmationEmail;
+    return {
+      status: !email
+        ? 'not_requested'
+        : email.sentAt
+          ? 'sent'
+          : email.lastError
+            ? 'retrying'
+            : 'queued',
+      sentAt: email?.sentAt?.toISOString() ?? null,
+    };
   }
 }
 

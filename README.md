@@ -65,8 +65,10 @@ Addresses:
 - Website: http://localhost:3000
 - API: http://localhost:3001
 - PostgreSQL: localhost:5432
+- Local email inbox: http://localhost:8025 (SMTP: localhost:1025)
 
-Subsequent starts need only the running database and `pnpm dev`.
+Subsequent starts need the running database and `pnpm dev`; keep the inbox running
+for local email delivery.
 Startup builds shared contracts and generates Prisma before starting the API.
 Only run one development instance at a time. Stop it with Ctrl+C, then optionally:
 
@@ -74,7 +76,36 @@ Only run one development instance at a time. Stop it with Ctrl+C, then optionall
 docker compose -f infra/docker-compose.yml stop
 ```
 
-Only PostgreSQL is containerized today. Full-stack Compose comes in a later slice.
+PostgreSQL and the local email inbox are containerized today. Full-stack Compose
+comes in the next slice.
+
+## Confirmation email
+
+New bookings queue a confirmation containing the saved car, rental times, extras,
+price breakdown, and a private booking link. Default delivery goes to the bundled
+Mailpit inbox at http://localhost:8025, **not a real email address's external inbox**.
+The local inbox is shared across demo accounts and its data persists in Docker.
+It binds only to localhost; the app's receipt includes an "Open local demo inbox" link.
+
+Upgrading an existing checkout for email:
+
+```bash
+pnpm install
+docker compose -f infra/docker-compose.yml up -d
+pnpm --filter @handoff/bff db:migrate
+pnpm dev
+```
+
+The additive migration creates the delivery queue without changing bookings or
+seeding data. Existing bookings do not receive retroactive confirmations.
+Receipts show queued, delayed/retrying, or sent status. SMTP downtime does not
+cancel or fail a booking; delivery retries survive API restarts. Stop/start the
+inbox with the existing Compose commands without deleting its volume.
+
+To deliver externally, configure `SMTP_HOST`, `SMTP_PORT`, optional `SMTP_USER` /
+`SMTP_PASSWORD`, `EMAIL_FROM`, and TLS in `apps/bff/.env`. Set `WEB_ORIGIN` to the
+public website origin so email links work. See the API README and `.env.example`.
+No provider integration is required; tests send only to disposable local inboxes.
 
 ## Validation
 
@@ -86,11 +117,27 @@ pnpm test:api
 pnpm test:smoke
 ```
 
-- `test`: password/session, rental-time and safe login-return tests; no database needed.
+- `test`: password/session, rental-time, login-return and email configuration/template
+  tests; no database or SMTP server needed.
 - `test:api`: builds the API/contracts, starts a disposable PostgreSQL 17 container
   on a random local port, applies migrations, seeds, tests routes and persistence,
-  and removes the test container/volume. Requires Docker; it does not use your database.
+  and removes the test containers/volumes. Email checks use a disposable Mailpit
+  SMTP server. Requires Docker; it does not use your database or send external email.
 - `test:smoke`: non-mutating API/page checks against the running, seeded local stack.
+
+History browser regression (stop `pnpm dev` first; requires Docker and port 3400):
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:history
+```
+
+This test builds the API, starts a disposable database and its own app processes,
+and a disposable Mailpit inbox, then cleans them up afterward. It covers checkout
+→ captured confirmation → history → details, pagination,
+legacy records, owner isolation, live lifecycle changes, loading/error recovery,
+and keyboard/mobile interactions. `PLAYWRIGHT_CHROMIUM_EXECUTABLE` optionally selects
+an existing Chromium binary. Browser tooling is a development-only dependency.
 
 ## Current boundaries
 
@@ -112,8 +159,12 @@ For an existing slice-2 checkout, run `pnpm --filter @handoff/bff db:migrate`
 before starting the app. The migration only adds nullable checkout metadata and
 a unique request-key index; it does not reset or seed data.
 
-History UI, confirmation email, and full-stack Docker Compose remain future slices.
-Save the confirmation page URL until history is available.
+`/bookings` shows your rental history with clickable summary cards and older-page
+navigation. `/bookings/:id` shows the saved receipt and details. Upcoming, Active,
+and Completed states follow the scheduled UTC times and update while the page is
+open; Pending and Cancelled records retain those states. Older records show only
+the information originally saved. Confirmation email is implemented with a local
+inbox and configurable SMTP. Full-stack Docker Compose remains the next slice.
 Booking routes now require a session and return only the caller's bookings.
 Customer identity is taken from the session, never the request body. Existing
 anonymous bookings remain stored but are not assigned to newly registered users,

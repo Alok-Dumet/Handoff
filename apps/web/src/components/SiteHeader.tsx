@@ -33,7 +33,7 @@ export default function SiteHeader({ user }: { user: AccountUser | null }) {
     <header className="absolute inset-x-0 top-0 z-20">
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-5"
+        className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-5"
       >
         <Link
           href={user ? "/vehicles" : "/"}
@@ -47,6 +47,12 @@ export default function SiteHeader({ user }: { user: AccountUser | null }) {
         <div className="flex items-center gap-2 text-sm">
           {user ? (
             <>
+              <Link
+                href="/bookings"
+                className="rounded-full px-2 py-2 text-white/90 hover:bg-white/10"
+              >
+                Bookings
+              </Link>
               <Link
                 href="/account"
                 className="rounded-full px-3 py-2 text-white/90 hover:bg-white/10"

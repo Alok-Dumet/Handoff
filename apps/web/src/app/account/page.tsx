@@ -22,6 +22,9 @@ export default async function AccountPage() {
             <dd className="mt-1 break-words text-white">{user.email}</dd>
           </div>
         </dl>
+        <Link href="/bookings" className="mt-6 block text-white underline">
+          View your booking history
+        </Link>
         <Link
           href="/vehicles"
           className="mt-8 inline-block rounded-full bg-white px-6 py-3 text-sm font-semibold text-black"

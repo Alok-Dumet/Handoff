@@ -16,13 +16,20 @@ separate domain services.
 - `POST /auth/register` — create an account and a session
 - `POST /auth/login` — verify credentials and issue a new session
 - `POST /auth/logout` — revoke the current session and clear its cookie
-- `GET /bookings` — latest 10 belonging to the authenticated user
+- `GET /bookings?cursor=...` — owner-only history, 10 records per page
 - `GET /bookings/:id`
+- `GET /bookings/:id/email` — owner-only delivery status and nullable sent timestamp
 - `POST /bookings` — priced, confirmed checkout with retry protection
 
 Vehicle/location/quote response shapes are unchanged. Booking creation keeps the
 `{ booking, nextJourney, alternatives }` envelope, but `nextJourney` is now null
-and `alternatives` is empty. Booking reads return the booking contract directly.
+and `alternatives` is empty. Individual booking reads return the booking contract directly.
+The list route returns `{ items, nextCursor }`; pass `nextCursor` as the next
+request's `cursor` until it is null. Results sort by creation time and ID descending,
+so equal timestamps and new bookings do not duplicate or skip older records during
+pagination. Missing/foreign/unowned cursors return the same 400 response. Detail
+reads still return the booking directly; no user IDs, session data or retry keys
+are included. All history/detail responses remain `no-store`.
 Booking routes require a session; customer name/email come from that session,
 ignoring client-supplied identity. Another user's booking (or an unowned legacy
 booking) returns 404. Date-only legacy records remain readable, but new writes
@@ -110,7 +117,45 @@ The integration tests use a separate disposable Docker database, never the local
   Required explicitly in production.
 - `PORT`: defaults to `3001`.
 - `WEB_ORIGIN`: exact website origin for CSRF checks; defaults to `http://localhost:3000`.
-  Set the public HTTPS origin when deploying; it enables Secure session cookies.
+  Set the public HTTPS origin when deploying; it enables Secure session cookies
+  and supplies the origin for private booking links in confirmations.
+- `SMTP_HOST` / `SMTP_PORT`: defaults to `127.0.0.1:1025` (local Mailpit).
+- `SMTP_SECURE`: direct TLS, default false; use true with port 465.
+- `SMTP_REQUIRE_TLS`: require STARTTLS, default true with SMTP credentials unless
+  direct TLS is enabled. Use true with external providers on port 587.
+- `SMTP_USER` / `SMTP_PASSWORD`: optional; set both or neither.
+- `EMAIL_FROM`: defaults to `HandOff <no-reply@handoff.local>`; external SMTP
+  typically requires an address verified with that provider.
+- `EMAIL_WORKER_ENABLED`: defaults to true. Set false to pause the background
+  worker; successful bookings still queue their confirmations.
+
+## Durable email delivery
+
+Checkout saves one `confirmation_emails` row in the booking transaction. Its
+recipient is the account's email; text/HTML use the immutable receipt and escape
+customer content. Idempotent booking replays never create another delivery job.
+Existing bookings are not backfilled. Public status is `not_requested`, `queued`,
+`retrying`, or `sent`; the endpoint never exposes message content, SMTP errors,
+credentials, or another account's delivery status.
+
+The API polls every 5 seconds, claims up to 10 jobs per batch using PostgreSQL
+`FOR UPDATE SKIP LOCKED`, and releases the database lock before SMTP. Claims carry
+a unique token and a five-minute lease, allowing recovery after a crashed worker.
+Failures retry after 5s, 10s, 20s, etc., capped at one hour, without a retry limit.
+Logs and stored errors omit raw provider responses and credentials. Graceful
+shutdown stops polling and finishes the current attempt before closing Prisma.
+
+Delivery is **at least once**: a crash after SMTP acceptance but before the success
+write can lead to a retry. Stable Message-ID values let the configured local inbox
+deduplicate that case; external providers may still show duplicates. `sent` means
+SMTP accepted the message, not a guarantee that a remote mailbox delivered/read it.
+No SMTP request is part of checkout, so mail outages cannot roll back a booking.
+
+The local Compose inbox uses a persistent volume, localhost-only SMTP/UI ports,
+and disables automatic remote version checks. Configuration references:
+[Mailpit Docker](https://mailpit.axllent.org/docs/install/docker/),
+[Mailpit runtime options](https://mailpit.axllent.org/docs/configuration/runtime-options/),
+[Nodemailer SMTP](https://nodemailer.com/smtp).
 
 `REFDATA_URL`, `CUSTOMER_SERVICE_URL`, `RESERVATION_SERVICE_URL`,
 `BFF_INTERNAL_AUTH_SECRET`, and `STRIPE_WEBHOOK_SECRET` are no longer used.

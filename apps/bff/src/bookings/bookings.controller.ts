@@ -8,11 +8,15 @@ import {
   Req,
   UseGuards,
   Header,
+  Query,
 } from '@nestjs/common';
 import {
   type Booking,
   type BookingCreationResponse,
   CheckoutSchema,
+  BookingHistoryQuerySchema,
+  type BookingHistory,
+  type BookingEmail,
 } from '@handoff/contracts';
 import { BookingsService } from './bookings.service';
 import { SessionGuard, type AuthenticatedRequest } from '../auth/session.guard';
@@ -25,8 +29,13 @@ export class BookingsController {
 
   @Get()
   @Header('Cache-Control', 'no-store')
-  findAll(@Req() request: AuthenticatedRequest): Promise<Booking[]> {
-    return this.bookingsService.findAll(request.user.id);
+  findAll(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: Record<string, unknown>,
+  ): Promise<BookingHistory> {
+    const parsed = BookingHistoryQuerySchema.safeParse(query);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues);
+    return this.bookingsService.findAll(request.user.id, parsed.data.cursor);
   }
 
   @Post()
@@ -54,5 +63,14 @@ export class BookingsController {
     @Req() request: AuthenticatedRequest,
   ): Promise<Booking> {
     return this.bookingsService.findOne(id, request.user.id);
+  }
+
+  @Get(':id/email')
+  @Header('Cache-Control', 'no-store')
+  emailStatus(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<BookingEmail> {
+    return this.bookingsService.emailStatus(id, request.user.id);
   }
 }

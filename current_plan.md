@@ -108,7 +108,7 @@ Validation/results (2026-10-26):
 - Unrelated `Handoff_AWS_Architecture.drawio.png` appeared during work and was
   left untouched.
 
-## Slice 3 — Complete booking (complete; awaiting review/commit)
+## Slice 3 — Complete booking (committed: 85ca355)
 
 Scope:
 - Date-based vehicle search and shared availability checks, including a 24-hour
@@ -157,12 +157,98 @@ Validation/results (2026-10-26):
   the existing development PostgreSQL container remains running.
 - Changes are uncommitted. No further slice will begin before review/authorization.
 
+## Slice 4 — Booking history/details (complete; awaiting review/commit)
+
+Scope:
+- Private `/bookings` history with clickable summary cards, stable cursor
+  pagination, empty/loading/error states, and navigation from account/header.
+- Private `/bookings/:id` details sharing the saved receipt with confirmation.
+- Derive Upcoming/Active/Completed from scheduled UTC times without modifying
+  stored confirmation status. Preserve Pending/Cancelled and distinguish the
+  vehicle's 24-hour preparation period from completion of the customer's rental.
+- Update visible status while the page stays open. Preserve sparse legacy records
+  without inventing missing prices, times, branch names or extras.
+- Test pagination, account isolation, lifecycle boundaries, browser navigation,
+  keyboard/mobile behavior, and API failure recovery.
+
+No database migration or seeding is required. Email and full-stack Docker remain
+later slices. The list API now returns `{ items, nextCursor }`; individual detail
+and checkout response shapes are unchanged. Pagination includes legacy records
+and uses creation time plus ID to avoid ties and insertions disrupting traversal.
+
+Validation/results (2026-10-26):
+- `pnpm build` and `pnpm lint`: passed across all packages.
+- `pnpm test`: 6 tests passed, including exact lifecycle boundaries, legacy
+  dates, Pending/Cancelled precedence and supported history login return URLs.
+- `pnpm test:api`: 17 tests passed against disposable PostgreSQL, including all
+  existing auth/checkout regressions and multi-page owner-isolated history with
+  tied timestamps, insertion during pagination, invalid/foreign cursors, and
+  honest legacy details without invented fields.
+- Added maintained `pnpm test:history` browser regression and development-only
+  Playwright dependency. It passed private history/registration return, empty
+  state, checkout → card → receipt, loading state, pagination, legacy details,
+  mobile/keyboard behavior, foreign/unowned record protection, live lifecycle
+  transitions, and API outage/retry recovery. Used installed Chromium via the
+  documented executable override. Normal flow had no runtime/external-request errors.
+- Browser testing caught and fixed error recovery: retry now refreshes server
+  data as well as resetting the error boundary after the API returns.
+- `pnpm dev` started successfully; all 36 read-only smoke checks passed,
+  including both streamed and HTTP login redirects from protected pages.
+- No writes, migrations or seeding against the development database. Disposable
+  test databases were removed and app processes stopped; existing PostgreSQL
+  remains running. No existing dependency versions were upgraded.
+- Changes remain uncommitted for review. Next slice is confirmation email; it
+  has not been started.
+
+## Slice 5 — Confirmation email (complete; awaiting review/commit)
+
+Scope:
+- Save a durable confirmation job atomically with each new booking, using the
+  account email and original receipt. Preserve booking retry idempotency.
+- Run an SMTP worker with database claims, crash recovery, exponential retries,
+  and graceful shutdown. Mail outages must not prevent checkout.
+- Add a persistent local Mailpit inbox to the existing infrastructure Compose
+  file, with localhost-only ports and no automatic external version checks.
+- Support configurable external SMTP and display private delivery status on
+  confirmation/detail pages, with a local demo inbox link.
+- Cover real SMTP delivery, outage/restart recovery, concurrent claims, expired
+  leases, atomic rollback, template escaping, and browser receipt/inbox behavior.
+
+Decisions/limits:
+- SMTP delivery is at least once, not exactly once. Stable Message-ID deduplication
+  is enabled in local Mailpit; external providers can still duplicate a message
+  after a crash between SMTP acceptance and the success write.
+- Existing bookings are not backfilled or mailed retroactively. The local inbox
+  is shared across demo accounts; no external messages are sent by default.
+- Slice 4 remains uncommitted; the user authorized continuing on top of it.
+  The unrelated `ai/CLAUDE.md` deletion present at the start was left untouched.
+- Full-stack Compose/deployment remain later slices.
+
+Validation/results (2026-10-26):
+- `pnpm build` and `pnpm lint`: passed across all packages.
+- `pnpm test`: 9 tests passed, including SMTP configuration/TLS defaults,
+  exponential retry bounds and escaping untrusted content in email templates.
+- `pnpm test:api`: 21 tests passed using disposable PostgreSQL and Mailpit,
+  including atomic queue/booking rollback, one job per booking, private status,
+  mail outage/restart recovery, backoff, concurrent worker claims, abandoned
+  leases, stable Message-ID deduplication, automatic background sending, and
+  captured-message persistence across inbox stop/start.
+- `pnpm test:history`: passed the existing browser flow plus queued-to-sent
+  status and opening the actual captured message in the local inbox. Tests used
+  the installed Chromium override and sent no external emails.
+- Compose configuration validated. The additive queue migration was applied to
+  the development database; booking count stayed 0, with no backfilled mail jobs,
+  resets or reseeding. The persistent local inbox is running on localhost:8025.
+- `pnpm dev` started successfully; all 38 read-only smoke checks passed, including
+  the inbox and private email-status endpoint.
+- Test containers removed and app processes stopped. PostgreSQL and the local
+  Mailpit inbox remain running for review. New dependencies are Nodemailer/types;
+  existing dependency versions were not upgraded.
+- Both history and email slices remain uncommitted. Stop here for review before
+  starting full-stack Compose (slice 6).
+
 ## Remaining slices (not started)
 
-4. Booking history/details: owner-scoped summary cards and details, derived rental
-   lifecycle, accessible loading/error/empty states, and browser tests.
-5. Confirmation email: persistent delivery queue/retries, local SMTP inbox, and
-   configurable deployment SMTP. Booking success must survive mail outages.
 6. Full-stack Compose and end-to-end tests: automatic non-destructive migration/
    initial seeding, web/API/database/mail inbox, health checks, persistent volumes,
    one-command first launch, start/stop/restart verification, and a complete browser flow.

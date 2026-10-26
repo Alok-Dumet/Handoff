@@ -1,4 +1,4 @@
-# Local Postgres for the API. Keep the legacy name/volume to preserve existing data.
+# Local database and captured-email inbox. Keep legacy DB names to preserve data.
 # Usage: docker compose -f infra/docker-compose.yml up -d
 services:
   refdata-db:
@@ -19,5 +19,20 @@ services:
       timeout: 5s
       retries: 5
 
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    container_name: handoff-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_IGNORE_DUPLICATE_IDS: "true"
+    volumes:
+      - mailpit-data:/data
+
 volumes:
   refdata-db-data:
+  mailpit-data:

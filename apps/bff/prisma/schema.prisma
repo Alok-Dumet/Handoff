@@ -92,6 +92,7 @@ model Booking {
   requestKey   String?
   requestHash  String?
   checkoutSnapshot Json?
+  confirmationEmail ConfirmationEmail?
 
   @@unique([userId, requestKey])
   @@index([vehicleId])
@@ -109,6 +110,27 @@ model User {
   bookings     Booking[]
 
   @@map("users")
+}
+
+// One durable delivery intent per booking; SMTP is never called in checkout.
+model ConfirmationEmail {
+  bookingId String @id
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  recipient String
+  subject String
+  text String
+  html String
+  messageId String @unique
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  lockedUntil DateTime?
+  lockToken String?
+  lastError String?
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([sentAt, nextAttemptAt])
+  @@map("confirmation_emails")
 }
 
 model Session {

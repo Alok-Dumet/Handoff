@@ -51,6 +51,46 @@ export const BookingDetailSchema = BookingSchema.safeExtend({
 });
 export type BookingDetail = z.infer<typeof BookingDetailSchema>;
 
+export const BookingRecordSchema = z.union([
+  BookingDetailSchema,
+  BookingSchema,
+]);
+export type BookingRecord = z.infer<typeof BookingRecordSchema>;
+export const BookingHistoryQuerySchema = z.object({
+  cursor: z.string().min(1).max(200).optional(),
+});
+export const BookingHistorySchema = z.object({
+  items: z.array(BookingRecordSchema),
+  nextCursor: z.string().nullable(),
+});
+export type BookingHistory = z.infer<typeof BookingHistorySchema>;
+
+export const BookingEmailSchema = z.object({
+  status: z.enum(["not_requested", "queued", "retrying", "sent"]),
+  sentAt: z.iso.datetime().nullable(),
+});
+export type BookingEmail = z.infer<typeof BookingEmailSchema>;
+
+export function rentalState(
+  booking: BookingRecord,
+  now: number,
+): "Pending" | "Upcoming" | "Active" | "Completed" | "Cancelled" {
+  if (booking.status === "cancelled") return "Cancelled";
+  if (booking.status === "pending") return "Pending";
+  const start = Date.parse(
+    "extras" in booking
+      ? `${booking.extras.pickupAt}:00Z`
+      : `${booking.startDate}T00:00:00Z`,
+  );
+  const end = Date.parse(
+    "extras" in booking
+      ? `${booking.extras.dropoffAt}:00Z`
+      : `${booking.endDate}T00:00:00Z`,
+  );
+  if (now < start) return "Upcoming";
+  return now < end ? "Active" : "Completed";
+}
+
 export const CheckoutSchema = z.object({
   vehicleId: z.string().min(1),
   requestKey: z.uuid(),

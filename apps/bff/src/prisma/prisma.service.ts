@@ -1,4 +1,8 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { databaseUrl } from '../database-url';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
@@ -8,7 +12,7 @@ import { PrismaClient } from '../generated/prisma/client';
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
+  implements OnModuleInit, OnApplicationShutdown
 {
   constructor() {
     super({
@@ -20,7 +24,8 @@ export class PrismaService
     await this.$connect();
   }
 
-  async onModuleDestroy() {
+  async onApplicationShutdown() {
+    // Email workers finish OnModuleDestroy before their final DB connection closes.
     await this.$disconnect();
   }
 }

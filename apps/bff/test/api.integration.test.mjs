@@ -12,10 +12,14 @@ const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const { NestFactory } = require('@nestjs/core');
 const { AppModule } = require('../dist/app.module.js');
 const { PrismaService } = require('../dist/prisma/prisma.service.js');
+const { EmailService } = require('../dist/email/email.service.js');
 const { databaseUrl } = require('../dist/database-url.js');
 const contracts = require('@handoff/contracts');
 const containerName = `handoff-api-test-${randomUUID()}`;
 let containerId;
+let mailContainerId;
+let mailUrl;
+let smtpPort;
 let app;
 let base;
 let savedBooking;
@@ -69,6 +73,36 @@ before(
     process.env.DATABASE_URL = `postgresql://handoff_test:handoff_test@127.0.0.1:${port}/handoff_test`;
     process.env.NODE_ENV = 'test';
     process.env.WEB_ORIGIN = 'http://localhost:3000';
+    process.env.EMAIL_WORKER_ENABLED = 'false';
+    process.env.SMTP_HOST = '127.0.0.1';
+    process.env.SMTP_SECURE = 'false';
+    process.env.SMTP_REQUIRE_TLS = 'false';
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASSWORD;
+    process.env.EMAIL_FROM = 'HandOff <no-reply@handoff.local>';
+    mailContainerId = run('docker', [
+      'run',
+      '-d',
+      '--name',
+      `handoff-mail-test-${randomUUID()}`,
+      '-p',
+      '127.0.0.1::1025',
+      '-p',
+      '127.0.0.1::8025',
+      '-v',
+      '/data',
+      '-e',
+      'MP_DATABASE=/data/mailpit.db',
+      '-e',
+      'MP_DISABLE_VERSION_CHECK=true',
+      '-e',
+      'MP_IGNORE_DUPLICATE_IDS=true',
+      'axllent/mailpit:v1.27.4',
+    ]);
+    const mail = JSON.parse(run('docker', ['inspect', mailContainerId]))[0];
+    smtpPort = mail.NetworkSettings.Ports['1025/tcp'][0].HostPort;
+    mailUrl = `http://127.0.0.1:${mail.NetworkSettings.Ports['8025/tcp'][0].HostPort}`;
+    process.env.SMTP_PORT = smtpPort;
     let ready = false;
     for (let attempt = 0; attempt < 60; attempt++) {
       try {
@@ -104,6 +138,7 @@ after(async () => {
     await app?.close();
   } finally {
     if (containerId) run('docker', ['rm', '-f', '-v', containerId]);
+    if (mailContainerId) run('docker', ['rm', '-f', '-v', mailContainerId]);
   }
 });
 
@@ -412,7 +447,7 @@ test('checkout confirms a priced booking, ignores forged identity/prices, and sa
     savedBooking,
   );
   assert.ok(
-    (await request('/bookings', 200, undefined, 'GET', aliceCookie)).some(
+    (await request('/bookings', 200, undefined, 'GET', aliceCookie)).items.some(
       (b) => b.id === savedBooking.id,
     ),
   );
@@ -475,7 +510,7 @@ test('booking access is owner-scoped and never claims legacy bookings by email',
   );
   assert.deepEqual(
     await request('/bookings', 200, undefined, 'GET', bobCookie),
-    [],
+    { items: [], nextCursor: null },
   );
   const legacy = await app.get(PrismaService).booking.create({
     data: {
@@ -489,7 +524,7 @@ test('booking access is owner-scoped and never claims legacy bookings by email',
   });
   await request(`/bookings/${legacy.id}`, 404, undefined, 'GET', aliceCookie);
   const owned = await request('/bookings', 200, undefined, 'GET', aliceCookie);
-  assert.ok(!owned.some((booking) => booking.id === legacy.id));
+  assert.ok(!owned.items.some((booking) => booking.id === legacy.id));
   const crossOrigin = await rawRequest(
     '/bookings',
     { vehicleId: 'veh_003', startDate: '2027-05-01', endDate: '2027-05-03' },
@@ -546,12 +581,10 @@ test('checkout validates time bounds, branch, terms, extras and price before wri
     'one-hour same-day rental works',
   );
   assert.equal(booking.quote.days, 1);
-  await app
-    .get(PrismaService)
-    .vehicle.update({
-      where: { id: valid.vehicleId },
-      data: { pricePerDay: 999, salePricePerDay: null },
-    });
+  await app.get(PrismaService).vehicle.update({
+    where: { id: valid.vehicleId },
+    data: { pricePerDay: 999, salePricePerDay: null },
+  });
   assert.deepEqual(
     await request(
       `/bookings/${booking.id}`,
@@ -612,12 +645,10 @@ test('availability enforces the full turnaround on both sides, including legacy 
     await hasCar('veh_002', '2027-05-04T00:00', '2027-05-05T00:00'),
     true,
   );
-  await app
-    .get(PrismaService)
-    .booking.update({
-      where: { id: 'legacy-unowned' },
-      data: { status: 'cancelled' },
-    });
+  await app.get(PrismaService).booking.update({
+    where: { id: 'legacy-unowned' },
+    data: { status: 'cancelled' },
+  });
   assert.equal(
     await hasCar('veh_002', '2027-05-01T00:00', '2027-05-03T00:00'),
     true,
@@ -731,6 +762,403 @@ test('accounts, sessions and owned bookings survive API restart', async () => {
     ),
     savedBooking,
   );
+});
+
+test('history paginates all owned records with stable ties and rejects foreign cursors', async () => {
+  const prisma = app.get(PrismaService);
+  const before = await prisma.booking.count({ where: { userId: alice.id } });
+  const bob = await prisma.user.findUnique({
+    where: { email: 'bob@example.com' },
+  });
+  const fixture = {
+    vehicleId: 'veh_010',
+    customerName: alice.name,
+    customerEmail: alice.email,
+    startDate: new Date('2020-01-01'),
+    endDate: new Date('2020-01-03'),
+    createdAt: new Date('2030-01-01'),
+  };
+  await prisma.booking.createMany({
+    data: [
+      ...Array.from({ length: 23 }, (_, i) => ({
+        ...fixture,
+        id: `history_${String(i).padStart(2, '0')}`,
+        userId: alice.id,
+        status: i % 2 ? 'confirmed' : 'cancelled',
+      })),
+      { ...fixture, id: 'history_foreign', userId: bob.id },
+      { ...fixture, id: 'history_unowned' },
+    ],
+  });
+  const response = await rawRequest('/bookings', undefined, 'GET', aliceCookie);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  let page = contracts.BookingHistorySchema.parse(await response.json());
+  assert.equal(page.items.length, 10);
+  assert.equal(page.items[0].id, 'history_22');
+  assert.ok(page.nextCursor);
+  await prisma.booking.create({
+    data: {
+      ...fixture,
+      id: 'history_new',
+      userId: alice.id,
+      createdAt: new Date('2031-01-01'),
+    },
+  });
+  const ids = page.items.map((b) => b.id);
+  while (page.nextCursor) {
+    page = contracts.BookingHistorySchema.parse(
+      await request(
+        `/bookings?cursor=${page.nextCursor}`,
+        200,
+        undefined,
+        'GET',
+        aliceCookie,
+      ),
+    );
+    ids.push(...page.items.map((b) => b.id));
+  }
+  assert.equal(ids.length, before + 23);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(
+    !ids.includes('history_foreign') &&
+      !ids.includes('history_unowned') &&
+      !ids.includes('history_new'),
+  );
+  for (const cursor of ['history_foreign', 'history_unowned', 'missing', ''])
+    await request(
+      `/bookings?cursor=${cursor}`,
+      400,
+      undefined,
+      'GET',
+      aliceCookie,
+    );
+  await request(
+    '/bookings?cursor=history_01&cursor=history_02',
+    400,
+    undefined,
+    'GET',
+    aliceCookie,
+  );
+  const legacy = await request(
+    '/bookings/history_01',
+    200,
+    undefined,
+    'GET',
+    aliceCookie,
+  );
+  assert.equal(legacy.totalCents, undefined);
+  assert.equal(
+    legacy.extras,
+    undefined,
+    'legacy details do not invent receipt data',
+  );
+  await request(
+    '/bookings/history_foreign',
+    404,
+    undefined,
+    'GET',
+    aliceCookie,
+  );
+});
+
+test('confirmation jobs are atomic, unique per booking, private and absent for legacy records', async () => {
+  const prisma = app.get(PrismaService);
+  const job = await prisma.confirmationEmail.findUnique({
+    where: { bookingId: savedBooking.id },
+  });
+  assert.equal(job.recipient, alice.email);
+  assert.equal(job.attempts, 0);
+  assert.ok(job.text.includes(savedBooking.totalLabel));
+  assert.ok(
+    job.text.includes(`http://localhost:3000/bookings/${savedBooking.id}`),
+  );
+  assert.deepEqual(
+    await request(
+      `/bookings/${savedBooking.id}/email`,
+      200,
+      undefined,
+      'GET',
+      aliceCookie,
+    ),
+    { status: 'queued', sentAt: null },
+  );
+  await request(`/bookings/${savedBooking.id}/email`, 401);
+  await request(
+    `/bookings/${savedBooking.id}/email`,
+    404,
+    undefined,
+    'GET',
+    bobCookie,
+  );
+  await request(
+    '/bookings/legacy-unowned/email',
+    404,
+    undefined,
+    'GET',
+    aliceCookie,
+  );
+  assert.deepEqual(
+    await request(
+      '/bookings/history_01/email',
+      200,
+      undefined,
+      'GET',
+      aliceCookie,
+    ),
+    { status: 'not_requested', sentAt: null },
+  );
+  assert.equal(
+    await prisma.confirmationEmail.count(),
+    await prisma.booking.count({
+      where: {
+        checkoutSnapshot: {
+          not: require('../dist/generated/prisma/client.js').Prisma.DbNull,
+        },
+      },
+    }),
+  );
+  const input = await checkoutInput(
+    'veh_009',
+    '2027-11-01T10:00',
+    '2027-11-02T10:00',
+  );
+  // Reject only future queue inserts, proving an outbox write failure rolls
+  // back the booking too. Existing fixtures are deliberately not validated.
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE confirmation_emails ADD CONSTRAINT reject_test_recipient CHECK (recipient <> 'alice@example.com') NOT VALID`,
+  );
+  try {
+    await request('/bookings', 500, input, 'POST', aliceCookie);
+    assert.equal(
+      await prisma.booking.count({ where: { requestKey: input.requestKey } }),
+      0,
+    );
+  } finally {
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE confirmation_emails DROP CONSTRAINT reject_test_recipient',
+    );
+  }
+  const first = await request('/bookings', 201, input, 'POST', aliceCookie);
+  await request('/bookings', 201, input, 'POST', aliceCookie);
+  assert.equal(
+    await prisma.confirmationEmail.count({
+      where: { bookingId: first.booking.id },
+    }),
+    1,
+  );
+});
+
+test('SMTP outage leaves bookings successful and pending mail survives restart with backoff', async () => {
+  await app.close();
+  process.env.SMTP_PORT = '1'; // A closed local port; never contact an external provider.
+  await startApi();
+  const input = await checkoutInput(
+    'veh_008',
+    '2027-12-01T10:00',
+    '2027-12-02T10:00',
+  );
+  const { booking } = await request(
+    '/bookings',
+    201,
+    input,
+    'POST',
+    aliceCookie,
+  );
+  await app.get(EmailService).processDue();
+  const job = await app
+    .get(PrismaService)
+    .confirmationEmail.findUnique({ where: { bookingId: booking.id } });
+  assert.equal(job.attempts, 1);
+  assert.ok(job.nextAttemptAt > new Date());
+  assert.equal(job.lockedUntil, null);
+  assert.equal(job.lastError, 'Delivery attempt failed');
+  assert.equal(
+    (
+      await request(
+        `/bookings/${booking.id}/email`,
+        200,
+        undefined,
+        'GET',
+        aliceCookie,
+      )
+    ).status,
+    'retrying',
+  );
+  assert.equal(
+    (
+      await request(
+        `/bookings/${booking.id}`,
+        200,
+        undefined,
+        'GET',
+        aliceCookie,
+      )
+    ).status,
+    'confirmed',
+  );
+  await app.get(EmailService).processDue();
+  assert.equal(
+    (
+      await app
+        .get(PrismaService)
+        .confirmationEmail.findUnique({ where: { bookingId: booking.id } })
+    ).attempts,
+    1,
+    'backoff prevents immediate retry',
+  );
+  await app.close();
+  process.env.SMTP_PORT = smtpPort;
+  await startApi();
+  assert.equal(
+    (
+      await app
+        .get(PrismaService)
+        .confirmationEmail.findUnique({ where: { bookingId: booking.id } })
+    ).attempts,
+    1,
+  );
+});
+
+test('real SMTP delivery uses saved receipts, concurrent workers claim once, and expired leases recover', async () => {
+  const prisma = app.get(PrismaService);
+  await prisma.confirmationEmail.updateMany({
+    data: { nextAttemptAt: new Date(0) },
+  });
+  // A second Nest instance represents another API process sharing the queue.
+  const second = await NestFactory.create(AppModule, { logger: false });
+  await second.init();
+  try {
+    await Promise.all([
+      app.get(EmailService).processDue(),
+      second.get(EmailService).processDue(),
+    ]);
+  } finally {
+    await second.close();
+  }
+  const jobs = await prisma.confirmationEmail.findMany();
+  assert.ok(jobs.every((job) => job.sentAt && !job.lockedUntil));
+  assert.ok(
+    jobs.every((job) => job.attempts === 2),
+    'each job has one failed attempt and one claimed successful attempt',
+  );
+  const listing = await (await fetch(`${mailUrl}/api/v1/messages`)).json();
+  assert.equal(listing.total, jobs.length);
+  const summary = listing.messages.find((message) =>
+    message.Subject.includes(savedBooking.id),
+  );
+  assert.ok(summary);
+  const message = await (
+    await fetch(`${mailUrl}/api/v1/message/${summary.ID}`)
+  ).json();
+  assert.equal(message.To[0].Address, alice.email);
+  assert.ok(message.Text.includes(savedBooking.totalLabel));
+  assert.ok(message.Text.includes('GPS navigation'));
+  assert.ok(message.HTML.includes(`/bookings/${savedBooking.id}`));
+  const status = await rawRequest(
+    `/bookings/${savedBooking.id}/email`,
+    undefined,
+    'GET',
+    aliceCookie,
+  );
+  assert.equal(status.headers.get('cache-control'), 'no-store');
+  assert.equal((await status.json()).status, 'sent');
+  await app.get(EmailService).processDue();
+  assert.equal(
+    (await (await fetch(`${mailUrl}/api/v1/messages`)).json()).total,
+    jobs.length,
+  );
+  // Model a crash after SMTP accepted a message but before recording success.
+  // An unexpired claim must not be stolen; an expired one must be retried.
+  await prisma.confirmationEmail.update({
+    where: { bookingId: savedBooking.id },
+    data: {
+      sentAt: null,
+      lockedUntil: new Date(Date.now() + 60000),
+      lockToken: 'abandoned',
+    },
+  });
+  await app.get(EmailService).processDue();
+  assert.equal(
+    (
+      await prisma.confirmationEmail.findUnique({
+        where: { bookingId: savedBooking.id },
+      })
+    ).sentAt,
+    null,
+  );
+  await prisma.confirmationEmail.update({
+    where: { bookingId: savedBooking.id },
+    data: { lockedUntil: new Date(0) },
+  });
+  await app.get(EmailService).processDue();
+  assert.ok(
+    (
+      await prisma.confirmationEmail.findUnique({
+        where: { bookingId: savedBooking.id },
+      })
+    ).sentAt,
+  );
+  assert.equal(
+    (await (await fetch(`${mailUrl}/api/v1/messages`)).json()).total,
+    jobs.length,
+    'local inbox deduplicates stable Message-ID',
+  );
+  run('docker', ['stop', mailContainerId]);
+  run('docker', ['start', mailContainerId]);
+  const restarted = JSON.parse(run('docker', ['inspect', mailContainerId]))[0];
+  smtpPort = restarted.NetworkSettings.Ports['1025/tcp'][0].HostPort;
+  process.env.SMTP_PORT = smtpPort;
+  mailUrl = `http://127.0.0.1:${restarted.NetworkSettings.Ports['8025/tcp'][0].HostPort}`;
+  let total;
+  for (let i = 0; i < 30; i++) {
+    try {
+      total = (
+        await (
+          await fetch(`${mailUrl}/api/v1/messages`, {
+            signal: AbortSignal.timeout(1000),
+          })
+        ).json()
+      ).total;
+      break;
+    } catch {
+      await delay(100);
+    }
+  }
+  assert.equal(
+    total,
+    jobs.length,
+    'captured messages survive inbox stop/start',
+  );
+});
+
+test('background worker sends new confirmations automatically without an HTTP trigger', async () => {
+  await app.close();
+  process.env.EMAIL_WORKER_ENABLED = 'true';
+  await startApi();
+  const input = await checkoutInput(
+    'veh_007',
+    '2027-12-10T10:00',
+    '2027-12-11T10:00',
+  );
+  const { booking } = await request(
+    '/bookings',
+    201,
+    input,
+    'POST',
+    aliceCookie,
+  );
+  let sent = false;
+  for (let i = 0; i < 70; i++) {
+    const job = await app
+      .get(PrismaService)
+      .confirmationEmail.findUnique({ where: { bookingId: booking.id } });
+    if (job.sentAt) {
+      sent = true;
+      break;
+    }
+    await delay(100);
+  }
+  assert.ok(sent, 'background poll sends within the configured interval');
 });
 
 test('expired and forged sessions cannot authenticate, and logout revokes server-side access', async () => {
