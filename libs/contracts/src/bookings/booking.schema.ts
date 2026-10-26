@@ -48,6 +48,13 @@ export const CreateBookingSchema = BookingFieldsSchema.refine(
 );
 export type CreateBooking = z.infer<typeof CreateBookingSchema>;
 
+// The caller supplies rental details, never another customer's identity.
+export const CreateUserBookingSchema = BookingFieldsSchema.omit({
+  customerName: true,
+  customerEmail: true,
+}).refine((booking) => booking.endDate > booking.startDate, validDateRange);
+export type CreateUserBooking = z.infer<typeof CreateUserBookingSchema>;
+
 export const BookingSchema = BookingFieldsSchema.extend({
   id: z.string(),
   status: BookingStatusSchema,

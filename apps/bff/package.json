@@ -10,6 +10,7 @@
     "dev": "prisma generate && nest start --watch",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "db:seed-account": "tsx prisma/seed-account.ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "start": "nest start",
     "start:dev": "prisma generate && nest start --watch",

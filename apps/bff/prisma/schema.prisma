@@ -68,6 +68,9 @@ model Booking {
   status        BookingStatus @default(pending)
   createdAt     DateTime      @default(now())
   vehicle       Vehicle       @relation(fields: [vehicleId], references: [id])
+  // Older bookings remain unowned; never assign ownership by matching email.
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Purchase-page reservation details. Nullable because bookings created
   // before the purchase flow existed have none, and backfilling invented
@@ -88,5 +91,30 @@ model Booking {
   totalCents    Int?
 
   @@index([vehicleId])
+  @@index([userId])
   @@map("bookings")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+  bookings     Booking[]
+
+  @@map("users")
+}
+
+model Session {
+  tokenHash String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
 }

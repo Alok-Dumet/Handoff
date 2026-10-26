@@ -12,7 +12,8 @@ import {
   localDateTimeToMs,
   type Booking,
   type BookingDetail,
-  type CreateBooking,
+  type CreateUserBooking,
+  type AccountUser,
   type CreateBookingWithExtras,
 } from '@handoff/contracts';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,8 +22,9 @@ import { PrismaService } from '../prisma/prisma.service';
 export class BookingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(): Promise<Booking[]> {
+  async findAll(userId: string): Promise<Booking[]> {
     const bookings = await this.prisma.booking.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 10,
     });
@@ -30,9 +32,9 @@ export class BookingsService {
     return BookingListSchema.parse(bookings.map(toContractBooking));
   }
 
-  async findOne(id: string): Promise<Booking> {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id },
+  async findOne(id: string, userId: string): Promise<Booking> {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id, userId },
     });
 
     if (!booking) {
@@ -42,7 +44,7 @@ export class BookingsService {
     return BookingSchema.parse(toContractBooking(booking));
   }
 
-  async create(input: CreateBooking): Promise<Booking> {
+  async create(input: CreateUserBooking, user: AccountUser): Promise<Booking> {
     const startDate = new Date(input.startDate);
     const endDate = new Date(input.endDate);
     const vehicle = await this.prisma.vehicle.findUnique({
@@ -72,8 +74,9 @@ export class BookingsService {
       data: {
         id: `booking_${randomUUID()}`,
         vehicleId: input.vehicleId,
-        customerName: input.customerName,
-        customerEmail: input.customerEmail,
+        userId: user.id,
+        customerName: user.name,
+        customerEmail: user.email,
         startDate,
         endDate,
       },
@@ -93,6 +96,7 @@ export class BookingsService {
    */
   async createWithExtras(
     input: CreateBookingWithExtras,
+    user: AccountUser,
   ): Promise<BookingDetail> {
     const { extras } = input;
     const pickupAt = new Date(localDateTimeToMs(extras.pickupAt));
@@ -152,8 +156,9 @@ export class BookingsService {
       data: {
         id: `booking_${randomUUID()}`,
         vehicleId: input.vehicleId,
-        customerName: input.customerName,
-        customerEmail: input.customerEmail,
+        userId: user.id,
+        customerName: user.name,
+        customerEmail: user.email,
         startDate: new Date(input.startDate),
         endDate: new Date(input.endDate),
         pickupLocationId: extras.pickupLocationId,

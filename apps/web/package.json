@@ -9,8 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.5.8",
-    "@clerk/themes": "^2.4.57",
     "@handoff/contracts": "workspace:*",
     "next": "16.2.9",
     "react": "19.2.4",

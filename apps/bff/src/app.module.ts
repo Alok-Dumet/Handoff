@@ -6,9 +6,11 @@ import { LocationsModule } from './locations/locations.module';
 import { PricingModule } from './pricing/pricing.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
+    AuthModule,
     VehiclesModule,
     GeocodeModule,
     LocationsModule,

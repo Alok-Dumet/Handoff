@@ -5,39 +5,54 @@ import {
   Get,
   Param,
   Post,
+  Req,
+  UseGuards,
+  Header,
 } from '@nestjs/common';
 import {
   type Booking,
   type BookingCreationResponse,
-  CreateBookingSchema,
+  CreateUserBookingSchema,
 } from '@handoff/contracts';
 import { BookingsService } from './bookings.service';
+import { SessionGuard, type AuthenticatedRequest } from '../auth/session.guard';
+import { SameOriginGuard } from '../auth/same-origin.guard';
 
 @Controller('bookings')
+@UseGuards(SessionGuard, SameOriginGuard)
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
   @Get()
-  findAll(): Promise<Booking[]> {
-    return this.bookingsService.findAll();
+  @Header('Cache-Control', 'no-store')
+  findAll(@Req() request: AuthenticatedRequest): Promise<Booking[]> {
+    return this.bookingsService.findAll(request.user.id);
   }
 
   @Post()
-  async create(@Body() body: unknown): Promise<BookingCreationResponse> {
-    const result = CreateBookingSchema.safeParse(body);
+  @Header('Cache-Control', 'no-store')
+  async create(
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<BookingCreationResponse> {
+    const result = CreateUserBookingSchema.safeParse(body);
     if (!result.success) {
       throw new BadRequestException(result.error.issues);
     }
 
     return {
-      booking: await this.bookingsService.create(result.data),
+      booking: await this.bookingsService.create(result.data, request.user),
       nextJourney: null,
       alternatives: [],
     };
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<Booking> {
-    return this.bookingsService.findOne(id);
+  @Header('Cache-Control', 'no-store')
+  findOne(
+    @Param('id') id: string,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<Booking> {
+    return this.bookingsService.findOne(id, request.user.id);
   }
 }

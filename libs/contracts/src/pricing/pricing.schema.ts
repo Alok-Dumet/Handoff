@@ -6,8 +6,8 @@ import { LocalDateTimeSchema } from '../rental-window/rental-window.schema.js';
  *
  * Every amount is an integer number of CENTS. Money is never a float here:
  * 0.1 + 0.2 !== 0.3 in binary floating point, and a rounding drift of one cent
- * between the quote shown and the amount charged is a real defect once Stripe
- * is involved. Formatting to "$123.45" happens once, on the way out.
+ * between the quote shown and the booked total is a real defect.
+ * Formatting to "$123.45" happens once, on the way out.
  */
 export const CENTS_PER_DOLLAR = 100;
 

@@ -10,7 +10,7 @@
   confirmation email → booking history/details. No payments or extra journeys.
 - Availability includes a 24-hour turnaround after the scheduled return time.
 
-## Slice 1 — Consolidate the backend (complete; awaiting user review/commit)
+## Slice 1 — Consolidate the backend (committed: d8811a1)
 
 The initial authentication-first idea was adjusted after inspection: database
 ownership must move into the retained API before adding durable accounts.
@@ -67,13 +67,49 @@ Local migration/cleanup notes:
   Deleted tracked service/mock sources remain recoverable from Git.
 - Unrelated `temporary.md` deletion and `Current_State.md` addition appeared while
   work was in progress; neither was edited as part of this slice.
-- Changes remain uncommitted on `main`. Next action: user review/commit, then slice 2.
+- User reviewed/committed this slice as `d8811a1` and authorized slice 2.
+
+## Slice 2 — Local accounts and ownership (complete; awaiting review/commit)
+
+Scope:
+- Remove Clerk dependencies, components, middleware, and temporary-key workaround.
+- Persist local users and opaque, revocable sessions in PostgreSQL; store password
+  hashes and session-token hashes, never plaintext passwords or session tokens.
+- Add register/login/session/logout API routes, same-origin request protection,
+  HttpOnly cookies, and no-store session responses.
+- Replace sign-in/up screens, add a simple account page and working logout.
+- Proxy browser API requests through the website's `/api` path.
+- Add a demo account through an idempotent seed that does not reset existing users.
+- Require authentication for booking routes and scope reads/writes to their owner.
+  Preserve existing bookings as unowned; do not attach them by matching email.
+- Add authentication/session/ownership integration tests and browser checks.
+
+Deferred: working checkout, history UI, email, turnaround/concurrency rules,
+password recovery/email verification, and deployment hardening/full-stack Compose.
+No additional slice will begin before user review and commit.
+
+Validation/results (2026-10-26):
+- `pnpm build`, `pnpm lint`, and password/session-cookie unit tests passed.
+- `pnpm test:api`: 13 integration tests passed against disposable PostgreSQL,
+  including registration, login, logout, expiry, session rotation/restart
+  persistence, request protection, booking ownership, and legacy record isolation.
+- `pnpm test:smoke`: all 30 checks passed on the normal development stack.
+- Browser checks passed for registration, account details, invalid credentials,
+  duplicate email, login/logout, demo login, protected-page redirects, session
+  persistence after API restart, existing quotes, and mobile layout. No external
+  service requests or browser runtime errors occurred in the exercised flow.
+- Applied the additive accounts migration to the local development database and
+  seeded only the demo account. Existing booking count stayed unchanged; no
+  database reset or inventory reseeding was performed.
+- Demo credentials: `demo@handoff.local` / `DemoRental123!`.
+- Removed Clerk dependencies without upgrading other dependency versions.
+- Stopped development/test application processes before handoff. Changes remain
+  uncommitted for user review; checkout and the remaining slices are not started.
+- Unrelated `Handoff_AWS_Architecture.drawio.png` appeared during work and was
+  left untouched.
 
 ## Remaining slices (not started)
 
-2. Local accounts: remove Clerk and its workaround/tests; add persisted users,
-   hashed passwords, cookie sessions, login/register/logout, demo account, and
-   authenticated API ownership boundaries. Add account/session integration tests.
 3. Complete booking: availability-aware search, 24-hour turnaround, transactional
    conflict prevention, retry-safe submission, server pricing, stored quote/extras,
    and a working checkout/confirmation page. Test concurrency and date boundaries.

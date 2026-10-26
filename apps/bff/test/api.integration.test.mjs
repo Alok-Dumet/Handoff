@@ -19,6 +19,9 @@ let containerId;
 let app;
 let base;
 let savedBooking;
+let aliceCookie;
+let alice;
+let bobCookie;
 
 function run(command, args) {
   try {
@@ -65,6 +68,7 @@ before(
     const port = inspect.NetworkSettings.Ports['5432/tcp'][0].HostPort;
     process.env.DATABASE_URL = `postgresql://handoff_test:handoff_test@127.0.0.1:${port}/handoff_test`;
     process.env.NODE_ENV = 'test';
+    process.env.WEB_ORIGIN = 'http://localhost:3000';
     let ready = false;
     for (let attempt = 0; attempt < 60; attempt++) {
       try {
@@ -103,16 +107,32 @@ after(async () => {
   }
 });
 
-async function request(path, status = 200, body, method = 'GET') {
-  const response = await fetch(`${base}${path}`, {
+async function rawRequest(
+  path,
+  body,
+  method = 'GET',
+  cookie = '',
+  extraHeaders = {},
+) {
+  return fetch(`${base}${path}`, {
     method,
     signal: AbortSignal.timeout(10_000),
-    ...(body !== undefined && {
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
+    headers: {
+      ...(cookie && { Cookie: cookie }),
+      ...(body !== undefined && {
+        'content-type': 'application/json',
+        Origin: 'http://localhost:3000',
+        'X-Handoff-CSRF': '1',
+      }),
+      ...extraHeaders,
+    },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
   });
-  const result = await response.json();
+}
+
+async function request(path, status = 200, body, method = 'GET', cookie = '') {
+  const response = await rawRequest(path, body, method, cookie);
+  const result = response.status === 204 ? null : await response.json();
   assert.equal(
     response.status,
     status,
@@ -120,6 +140,140 @@ async function request(path, status = 200, body, method = 'GET') {
   );
   return result;
 }
+
+async function signIn(body, path = '/auth/login', cookie = '') {
+  const response = await rawRequest(path, body, 'POST', cookie);
+  assert.equal(
+    response.status,
+    path.endsWith('register') ? 201 : 200,
+    await response.clone().text(),
+  );
+  const result = contracts.SessionResponseSchema.parse(await response.json());
+  const header = response.headers.get('set-cookie');
+  assert.match(header, /HttpOnly/i);
+  assert.match(header, /SameSite=Lax/i);
+  assert.match(header, /Max-Age=604800/);
+  assert.ok(!header.includes('Domain='));
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  return { user: result.user, cookie: header.split(';')[0] };
+}
+
+test('registration persists normalized accounts and hashed credentials without leaking secrets', async () => {
+  const session = await signIn(
+    {
+      name: ' Alice Driver ',
+      email: ' ALICE@example.com ',
+      password: 'AlicePassword123!',
+    },
+    '/auth/register',
+  );
+  alice = session.user;
+  aliceCookie = session.cookie;
+  assert.equal(alice.name, 'Alice Driver');
+  assert.equal(alice.email, 'alice@example.com');
+  assert.deepEqual(Object.keys(alice).sort(), ['email', 'id', 'name']);
+  const stored = await app
+    .get(PrismaService)
+    .user.findUnique({ where: { id: alice.id } });
+  assert.match(stored.passwordHash, /^scrypt\$/);
+  assert.notEqual(stored.passwordHash, 'AlicePassword123!');
+  const sessions = await app
+    .get(PrismaService)
+    .session.findMany({ where: { userId: alice.id } });
+  assert.equal(sessions.length, 1);
+  assert.notEqual(sessions[0].tokenHash, aliceCookie.split('=')[1]);
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', aliceCookie),
+    { user: alice },
+  );
+  const duplicate = {
+    name: 'Other person',
+    email: 'ALICE@example.com',
+    password: 'AnotherPassword123!',
+  };
+  await request('/auth/register', 409, duplicate, 'POST');
+  await request(
+    '/auth/register',
+    400,
+    { ...duplicate, email: 'invalid' },
+    'POST',
+  );
+  await request(
+    '/auth/register',
+    400,
+    { ...duplicate, password: 'short' },
+    'POST',
+  );
+});
+
+test('login validates credentials, rotates the current session, and ignores spoofed identity headers', async () => {
+  await request(
+    '/auth/login',
+    401,
+    { email: alice.email, password: 'WrongPassword123!' },
+    'POST',
+  );
+  await request(
+    '/auth/login',
+    401,
+    { email: 'unknown@example.com', password: 'WrongPassword123!' },
+    'POST',
+  );
+  const previous = aliceCookie;
+  const session = await signIn(
+    { email: 'ALICE@example.com', password: 'AlicePassword123!' },
+    '/auth/login',
+    previous,
+  );
+  aliceCookie = session.cookie;
+  assert.notEqual(aliceCookie, previous);
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', previous),
+    { user: null },
+  );
+  const forged = await rawRequest('/auth/session', undefined, 'GET', '', {
+    'x-handoff-clerk-user-id': alice.id,
+    'x-handoff-email': alice.email,
+  });
+  assert.deepEqual(await forged.json(), { user: null });
+  assert.equal(forged.headers.get('cache-control'), 'no-store');
+});
+
+test('cross-origin and non-JSON authentication requests are rejected', async () => {
+  const body = { email: alice.email, password: 'AlicePassword123!' };
+  for (const headers of [
+    { Origin: 'https://evil.example' },
+    { Origin: '' },
+    { 'X-Handoff-CSRF': '' },
+    { 'content-type': 'text/plain' },
+  ]) {
+    const result = await rawRequest('/auth/login', body, 'POST', '', headers);
+    assert.equal(result.status, 403);
+    assert.equal(result.headers.get('set-cookie'), null);
+  }
+  const logout = await rawRequest('/auth/logout', {}, 'POST', aliceCookie, {
+    Origin: 'https://evil.example',
+  });
+  assert.equal(logout.status, 403);
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', aliceCookie),
+    { user: alice },
+  );
+});
+
+test('demo account is usable and reseeding does not overwrite existing credentials', async () => {
+  const demo = await signIn({
+    email: 'demo@handoff.local',
+    password: 'DemoRental123!',
+  });
+  const prisma = app.get(PrismaService);
+  const before = await prisma.user.findUnique({ where: { id: demo.user.id } });
+  const { seedDemoAccount } = require('../dist/auth/demo-account.js');
+  await seedDemoAccount(prisma);
+  const after = await prisma.user.findUnique({ where: { id: demo.user.id } });
+  assert.equal(after.passwordHash, before.passwordHash);
+  await request('/auth/logout', 204, {}, 'POST', demo.cookie);
+});
 
 test('database configuration works locally but requires explicit production credentials', () => {
   assert.match(databaseUrl({}), /localhost:5432\/refdata$/);
@@ -150,12 +304,10 @@ test('single API serves validated inventory, details, locations and static catal
 });
 
 test('filters and ordering use the advertised discounted price', async () => {
-  await app
-    .get(PrismaService)
-    .vehicle.update({
-      where: { id: 'veh_005' },
-      data: { salePricePerDay: 79 },
-    });
+  await app.get(PrismaService).vehicle.update({
+    where: { id: 'veh_005' },
+    data: { salePricePerDay: 79 },
+  });
   const cheap = await request('/vehicles?maxPricePerDay=80&sort=price_asc');
   assert.ok(cheap.some((v) => v.id === 'veh_005' && v.pricePerDay === 79));
   assert.ok(cheap.every((v) => v.pricePerDay <= 80));
@@ -206,28 +358,97 @@ test('basic booking persists, keeps the response envelope, and rejects overlaps'
     endDate: '2027-02-03',
   };
   const response = contracts.BookingCreationResponseSchema.parse(
-    await request('/bookings', 201, input, 'POST'),
+    await request('/bookings', 201, input, 'POST', aliceCookie),
   );
   savedBooking = response.booking;
+  assert.equal(savedBooking.customerName, alice.name);
+  assert.equal(savedBooking.customerEmail, alice.email);
   assert.equal(response.nextJourney, null);
   assert.deepEqual(response.alternatives, []);
-  assert.deepEqual(await request(`/bookings/${savedBooking.id}`), savedBooking);
-  assert.ok((await request('/bookings')).some((b) => b.id === savedBooking.id));
-  await request('/bookings', 409, input, 'POST');
+  assert.deepEqual(
+    await request(
+      `/bookings/${savedBooking.id}`,
+      200,
+      undefined,
+      'GET',
+      aliceCookie,
+    ),
+    savedBooking,
+  );
+  assert.ok(
+    (await request('/bookings', 200, undefined, 'GET', aliceCookie)).some(
+      (b) => b.id === savedBooking.id,
+    ),
+  );
+  await request('/bookings', 409, input, 'POST', aliceCookie);
   await request(
     '/bookings',
     400,
     { ...input, endDate: input.startDate },
     'POST',
+    aliceCookie,
   );
-  await request('/bookings', 400, {}, 'POST');
-  await request('/bookings', 404, { ...input, vehicleId: 'missing' }, 'POST');
-  await request('/bookings/missing', 404);
+  await request('/bookings', 400, {}, 'POST', aliceCookie);
+  await request(
+    '/bookings',
+    404,
+    { ...input, vehicleId: 'missing' },
+    'POST',
+    aliceCookie,
+  );
+  await request('/bookings/missing', 404, undefined, 'GET', aliceCookie);
+});
+
+test('booking access is owner-scoped and never claims legacy bookings by email', async () => {
+  bobCookie = (
+    await signIn(
+      {
+        name: 'Bob Driver',
+        email: 'bob@example.com',
+        password: 'BobPassword123!',
+      },
+      '/auth/register',
+    )
+  ).cookie;
+  await request('/bookings', 401);
+  await request(`/bookings/${savedBooking.id}`, 401);
+  await request('/bookings', 401, {}, 'POST');
+  await request(
+    `/bookings/${savedBooking.id}`,
+    404,
+    undefined,
+    'GET',
+    bobCookie,
+  );
+  assert.deepEqual(
+    await request('/bookings', 200, undefined, 'GET', bobCookie),
+    [],
+  );
+  const legacy = await app.get(PrismaService).booking.create({
+    data: {
+      id: 'legacy-unowned',
+      vehicleId: 'veh_002',
+      customerName: alice.name,
+      customerEmail: alice.email,
+      startDate: new Date('2027-05-01'),
+      endDate: new Date('2027-05-03'),
+    },
+  });
+  await request(`/bookings/${legacy.id}`, 404, undefined, 'GET', aliceCookie);
+  const owned = await request('/bookings', 200, undefined, 'GET', aliceCookie);
+  assert.ok(!owned.some((booking) => booking.id === legacy.id));
+  const crossOrigin = await rawRequest(
+    '/bookings',
+    { vehicleId: 'veh_003', startDate: '2027-05-01', endDate: '2027-05-03' },
+    'POST',
+    aliceCookie,
+    { Origin: 'https://evil.example' },
+  );
+  assert.equal(crossOrigin.status, 403);
 });
 
 test('removed mock and duplicate endpoints return 404', async () => {
   for (const path of [
-    '/auth/session',
     '/customers/me',
     '/reservations',
     '/reservations/anything',
@@ -254,9 +475,55 @@ test('removed mock and duplicate endpoints return 404', async () => {
   }
 });
 
-test('bookings survive API restart', async () => {
+test('accounts, sessions and owned bookings survive API restart', async () => {
   assert.ok(savedBooking);
   await app.close();
   await startApi();
-  assert.deepEqual(await request(`/bookings/${savedBooking.id}`), savedBooking);
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', aliceCookie),
+    { user: alice },
+  );
+  assert.deepEqual(
+    await request(
+      `/bookings/${savedBooking.id}`,
+      200,
+      undefined,
+      'GET',
+      aliceCookie,
+    ),
+    savedBooking,
+  );
+});
+
+test('expired and forged sessions cannot authenticate, and logout revokes server-side access', async () => {
+  const prisma = app.get(PrismaService);
+  const { tokenHash } = require('../dist/auth/session-cookie.js');
+  await prisma.session.update({
+    where: { tokenHash: tokenHash(bobCookie.split('=')[1]) },
+    data: { expiresAt: new Date(Date.now() - 1000) },
+  });
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', bobCookie),
+    { user: null },
+  );
+  await request('/bookings', 401, undefined, 'GET', bobCookie);
+  assert.deepEqual(
+    await request(
+      '/auth/session',
+      200,
+      undefined,
+      'GET',
+      `handoff_session=${'f'.repeat(64)}`,
+    ),
+    { user: null },
+  );
+  const response = await rawRequest('/auth/logout', {}, 'POST', aliceCookie);
+  assert.equal(response.status, 204);
+  assert.match(response.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/);
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', aliceCookie),
+    { user: null },
+  );
+  await request('/bookings', 401, undefined, 'GET', aliceCookie);
+  await request('/auth/logout', 204, {}, 'POST', aliceCookie);
 });

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
-import { dark } from "@clerk/themes";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import { getCurrentUser } from "@/lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,48 +9,19 @@ export const metadata: Metadata = {
   description: "Car rental platform",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
+  const user = await getCurrentUser();
   return (
-    <ClerkProvider
-      appearance={{
-        theme:dark,
-        elements: {
-          cardBox: {
-            border: "2px solid rgb(255, 255, 255)",
-            borderRadius: "0.5rem",
-            // boxShadow: "0 0 100px 2px rgb(255, 255, 255)",
-          },
-          headerTitle: "text-xl font-semibold tracking-tight",
-        },
-      }}
-      localization={{
-        signIn: {
-          start: {
-            title: "Sign in to HandOff",
-            subtitle: "Welcome back — pick up where you left off.",
-          },
-        },
-        signUp: {
-          start: {
-            title: "Create your HandOff account",
-            subtitle: "Get on the road in minutes.",
-          },
-        },
-      }}
-    >
-      <html lang="en">
-        <body>
-          <div className="flex min-h-dvh flex-col bg-black">
-            <SiteHeader />
-            <main className="flex flex-1 flex-col">{children}</main>
-            <SiteFooter />
-          </div>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <body>
+        <div className="flex min-h-dvh flex-col bg-black">
+          <SiteHeader user={user} />
+          <main className="flex flex-1 flex-col">{children}</main>
+          <SiteFooter />
+        </div>
+      </body>
+    </html>
   );
 }

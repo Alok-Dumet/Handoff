@@ -1,4 +1,8 @@
-export default function Home() {
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/session";
+
+export default async function Home() {
+  if (await getCurrentUser()) redirect("/vehicles");
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden">
       <video

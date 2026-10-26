@@ -5,7 +5,7 @@ Implementation is deliberately staged; see [current_plan.md](current_plan.md).
 
 ## Workspace
 
-- `apps/web` — Next.js frontend with Tailwind CSS. Clerk remains until slice 2.
+- `apps/web` — Next.js frontend with Tailwind CSS and local account screens.
 - `apps/bff` — the single NestJS API, including inventory, pricing, bookings, and Prisma.
   The existing directory/package name is retained for compatibility.
 - `libs/contracts` — shared Zod schemas and TypeScript types.
@@ -38,9 +38,28 @@ workspace links. Migration files have moved, but their contents/history are unch
 Do not reset the database or remove Docker volumes. Existing populated databases
 do not need reseeding; the seed updates demo inventory, so use it for initial setup.
 
-Clerk is still used by the frontend in this slice. Existing `apps/web/.env.local`
-settings continue to work; development can use Clerk's temporary keyless setup.
-Local account authentication without Clerk is the next slice.
+Authentication is fully local: no Clerk, Stripe, API keys, or external account
+setup is required. Old Clerk variables in `.env.local` are unused and can be removed.
+
+For an existing slice-1 database, apply the additive accounts migration and seed
+only the demo account (without changing inventory or existing bookings):
+
+```bash
+pnpm --filter @handoff/bff db:migrate
+pnpm --filter @handoff/bff... build
+pnpm --filter @handoff/bff db:seed-account
+```
+
+Register at `/sign-up`, or log in at `/sign-in` using `demo@handoff.local` /
+`DemoRental123!`. The login page can fill these demo credentials. The demo account
+is shared; register a separate account for your own data. Reseeding never resets
+an existing account's password. `/account` displays your signed-in identity.
+
+Sessions persist in PostgreSQL for seven days and logout revokes them. Cookies
+are HttpOnly and SameSite=Lax; configuring an HTTPS `WEB_ORIGIN` also sets Secure.
+If you use a hostname/port other than `http://localhost:3000`, set `WEB_ORIGIN` in
+`apps/bff/.env` to that exact browser origin. Browser API requests use `/api` on
+the website. `BFF_URL` controls the internal API URL; set it before building the web app.
 
 Addresses:
 - Website: http://localhost:3000
@@ -67,7 +86,7 @@ pnpm test:api
 pnpm test:smoke
 ```
 
-- `test`: dependency-free redirect regression tests (removed with Clerk in slice 2).
+- `test`: password hashing and session-cookie regression tests; no database needed.
 - `test:api`: builds the API/contracts, starts a disposable PostgreSQL 17 container
   on a random local port, applies migrations, seeds, tests routes and persistence,
   and removes the test container/volume. Requires Docker; it does not use your database.
@@ -76,13 +95,18 @@ pnpm test:smoke
 ## Current boundaries
 
 Browsing, filtering, location search, rental pricing, add-ons, and terms selection
-work. Checkout submission, local accounts, booking ownership/history, confirmation
-email, and the 24-hour turnaround rule are not implemented yet.
+work. Local registration/login/logout, persistent sessions, account details, and
+owner-scoped booking APIs are implemented. Checkout submission, history UI,
+confirmation email, and the 24-hour turnaround rule are not implemented yet.
 The Reserve button remains explicitly disabled.
 
 The basic booking API is preserved for demo use, including its existing overlap
 check; concurrency-safe booking and retry protection are scheduled for slice 3.
-It is currently unauthenticated and must not be exposed as a public booking service.
+Booking routes now require a session and return only the caller's bookings.
+Customer identity is taken from the session, never the request body. Existing
+anonymous bookings remain stored but are not assigned to newly registered users,
+even when their email matches. Password recovery/email verification and deployment
+hardening (including abuse/rate limiting) remain future work.
 
 Mock payments, profiles, identity verification, rentals, and extra journeys are
 removed. `POST /bookings` keeps its response envelope but now returns

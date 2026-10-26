@@ -19,9 +19,8 @@ import {
 
 // Server-side fetches (Server Components) use the internal BFF URL.
 const BFF_URL = process.env.BFF_URL ?? "http://localhost:3001";
-// Browser fetches (autocomplete typeahead) need a publicly reachable URL.
-const PUBLIC_BFF_URL =
-  process.env.NEXT_PUBLIC_BFF_URL ?? "http://localhost:3001";
+// Browser requests share the website's origin; internal API addresses stay private.
+const PUBLIC_BFF_URL = "/api";
 
 /** Turn a VehicleFilter into BFF query params (omitting empty fields). */
 function filterToParams(filter: VehicleFilter): URLSearchParams {
