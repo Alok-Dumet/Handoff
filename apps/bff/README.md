@@ -92,7 +92,9 @@ Spoofed user IDs, email headers, and customer fields do not grant access.
 
 ## Database and commands
 
-Prisma schema, migrations, and seed now live in `apps/bff/prisma`.
+Prisma schema and migrations live in `apps/bff/prisma`. The seed implementation
+lives in `src/seed.ts`; `prisma/seed.ts` wraps it for development. Containers run
+compiled `dist/seed.js` after `prisma migrate deploy`.
 Existing migrations and local PostgreSQL volume names are preserved.
 
 From the root:
@@ -105,7 +107,8 @@ pnpm dev
 pnpm test:api
 ```
 
-Use the seed for initial demo data; it updates existing seeded vehicles/locations.
+The seed inserts missing demo data and preserves existing vehicles, locations,
+accounts and bookings. It is safe to run on each container startup.
 To add the demo account alone, use `pnpm --filter @handoff/bff db:seed-account`.
 Credentials: `demo@handoff.local` / `DemoRental123!`. Existing users are never reset.
 The integration tests use a separate disposable Docker database, never the local one.

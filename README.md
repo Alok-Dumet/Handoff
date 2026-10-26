@@ -14,12 +14,47 @@ The separate refdata, customer, and reservation apps and unused mock API workflo
 have been removed. PostgreSQL container/database/volume names still include
 `refdata` intentionally: renaming them would disconnect existing local data.
 
+## Run with Docker
+
+From the repository root, with Docker running and Compose 2.20 or newer:
+
+```bash
+docker compose up --build -d --wait
+```
+
+Open http://localhost:3000. Register an account or use `demo@handoff.local` /
+`DemoRental123!`. Confirmation messages appear in the local inbox at
+http://localhost:8025. No Node.js installation, API keys, or environment file is
+needed to run the demo. The first build downloads dependencies and images.
+
+After the first launch:
+
+```bash
+docker compose stop
+docker compose start
+```
+
+Allow a few seconds for startup; `docker compose ps` shows service health.
+The stack includes web, API, PostgreSQL, and Mailpit. Startup applies migrations
+and inserts missing demo records without overwriting existing inventory, users,
+or bookings. Database and inbox volumes survive stop/start and `docker compose down`.
+Do not add `--volumes` to `down` unless you intend to erase your demo data.
+Use `docker compose up --build -d --wait` again after pulling code changes.
+
+The Compose project remains named `infra` to reuse existing development volumes.
+The API is internal and reachable through the website's `/api` routes. Database
+and inbox ports bind to localhost. Optional port/origin settings are documented in
+[.env.example](.env.example); copy it to `.env` only if you need overrides.
+When changing the browser address, set `WEB_ORIGIN` to that exact origin and
+`DEMO_INBOX_URL` to the reachable inbox address.
+
 ## Local development
 
 Use Node.js 24 LTS, pnpm 11.6.0, and Docker Compose. From the repository root:
 
 ```bash
 pnpm install
+docker compose stop api web # if the full Docker stack is running
 docker compose -f infra/docker-compose.yml up -d
 pnpm --filter @handoff/bff db:migrate
 pnpm --filter @handoff/bff... build
@@ -36,7 +71,7 @@ Upgrading an existing checkout: move any custom settings from
 `apps/services/refdata/.env` into `apps/bff/.env`. Run `pnpm install` to update
 workspace links. Migration files have moved, but their contents/history are unchanged.
 Do not reset the database or remove Docker volumes. Existing populated databases
-do not need reseeding; the seed updates demo inventory, so use it for initial setup.
+do not need reseeding; the seed only inserts missing demo records.
 
 Authentication is fully local: no Clerk, Stripe, API keys, or external account
 setup is required. Old Clerk variables in `.env.local` are unused and can be removed.
@@ -76,8 +111,7 @@ Only run one development instance at a time. Stop it with Ctrl+C, then optionall
 docker compose -f infra/docker-compose.yml stop
 ```
 
-PostgreSQL and the local email inbox are containerized today. Full-stack Compose
-comes in the next slice.
+Stop the containerized web/API before starting `pnpm dev` to avoid port conflicts.
 
 ## Confirmation email
 
@@ -125,6 +159,28 @@ pnpm test:smoke
   SMTP server. Requires Docker; it does not use your database or send external email.
 - `test:smoke`: non-mutating API/page checks against the running, seeded local stack.
 
+Full production-container regression (requires installed workspace dependencies,
+Docker, and Chromium):
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:compose
+```
+
+This builds production images and uses an isolated Compose project with random
+ports. It checks initial migration/seeding, registration, search, extras, checkout,
+email, history/details, retry safety, the 24-hour availability boundary, SMTP
+outage recovery, stop/start, and container recreation. It verifies that edited
+inventory, accounts, sessions, bookings, and inbox messages persist. Only its own
+test containers and volumes are removed. `PLAYWRIGHT_CHROMIUM_EXECUTABLE` can select
+an existing Chromium executable.
+
+For read-only smoke checks against the running Docker stack:
+
+```bash
+BFF_URL=http://localhost:3000/api pnpm test:smoke
+```
+
 History browser regression (stop `pnpm dev` first; requires Docker and port 3400):
 
 ```bash
@@ -164,7 +220,7 @@ navigation. `/bookings/:id` shows the saved receipt and details. Upcoming, Activ
 and Completed states follow the scheduled UTC times and update while the page is
 open; Pending and Cancelled records retain those states. Older records show only
 the information originally saved. Confirmation email is implemented with a local
-inbox and configurable SMTP. Full-stack Docker Compose remains the next slice.
+inbox and configurable SMTP. The full stack runs with Docker Compose.
 Booking routes now require a session and return only the caller's bookings.
 Customer identity is taken from the session, never the request body. Existing
 anonymous bookings remain stored but are not assigned to newly registered users,

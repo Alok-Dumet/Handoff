@@ -1,0 +1,59 @@
+# Keep the existing project name so infra_refdata-db-data and infra_mailpit-data
+# remain attached. Tests override the project and container names for isolation.
+name: infra
+
+include:
+  - infra/docker-compose.yml
+
+services:
+  api:
+    image: handoff-api:local
+    build:
+      context: .
+      target: api
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://handoff:handoff@refdata-db:5432/refdata
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:${WEB_PORT:-3000}}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_REQUIRE_TLS: "false"
+    depends_on:
+      refdata-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      start_period: 90s
+      retries: 12
+
+  web:
+    image: handoff-web:local
+    build:
+      context: .
+      target: web
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      BFF_URL: http://api:3001
+      DEMO_INBOX_URL: ${DEMO_INBOX_URL:-http://localhost:${INBOX_PORT:-8025}}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
+      retries: 12

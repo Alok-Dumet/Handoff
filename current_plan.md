@@ -157,7 +157,7 @@ Validation/results (2026-10-26):
   the existing development PostgreSQL container remains running.
 - Changes are uncommitted. No further slice will begin before review/authorization.
 
-## Slice 4 — Booking history/details (complete; awaiting review/commit)
+## Slice 4 — Booking history/details (committed: ad2ff87)
 
 Scope:
 - Private `/bookings` history with clickable summary cards, stable cursor
@@ -200,7 +200,7 @@ Validation/results (2026-10-26):
 - Changes remain uncommitted for review. Next slice is confirmation email; it
   has not been started.
 
-## Slice 5 — Confirmation email (complete; awaiting review/commit)
+## Slice 5 — Confirmation email (committed: ad2ff87)
 
 Scope:
 - Save a durable confirmation job atomically with each new booking, using the
@@ -247,11 +247,44 @@ Validation/results (2026-10-26):
 - Both history and email slices remain uncommitted. Stop here for review before
   starting full-stack Compose (slice 6).
 
+## Slice 6 — Full-stack Compose and end-to-end tests (complete; awaiting review/commit)
+
+Slices 4 and 5 were reviewed/committed together as `ad2ff87` before this slice.
+
+Scope:
+- Add production web/API images and root Compose alongside PostgreSQL/Mailpit.
+- Apply migrations and insert missing demo records automatically at startup,
+  preserving existing inventory edits, accounts, bookings, and named volumes.
+- Run application processes as non-root, package standalone web assets, and add
+  database-aware API and proxied web health checks.
+- Support one-command first launch and plain `docker compose stop` / `start`.
+- Add isolated production-container browser coverage for the rental flow, email
+  outage recovery, turnaround boundaries, and persistence across restarts/recreation.
+- Document Docker usage, optional configuration, and the separate development flow.
+
+Validation/results (2026-10-26):
+- `pnpm lint` and `pnpm build`: passed across all packages.
+- `pnpm test:api`: all 22 integration tests passed, including the new compiled
+  startup-seed preservation regression. `pnpm test`: all 9 unit tests passed.
+- `pnpm test:compose`: passed using installed Chromium. Verified fresh startup,
+  non-root application processes, local image assets, registration, dated search,
+  extras, checkout, captured email, history/details, retry idempotency, exact
+  24-hour turnaround, mobile layout, and no browser errors/external requests.
+- The same suite passed mail outage/retry recovery, plain Compose stop/start,
+  and down/up container recreation. Accounts, sessions, bookings, edited prices,
+  branch/account names and inbox messages survived without duplicate seeds/mail.
+  Its isolated project and volumes were removed afterward.
+- Default `docker compose up --build -d --wait` passed against the existing
+  development volumes. Booking count stayed 0; no test bookings were created in
+  that database. All 38 read-only smoke checks passed through the web API proxy.
+- Compose `start` has no `--wait` option in the installed version; documented
+  plain `docker compose start` and used health polling in the regression test.
+- Web/API containers stopped after checks to free the app port; existing database
+  and inbox remain running. `docker compose start` starts the app for review.
+- Changes remain uncommitted. No public deployment or next slice started.
+
 ## Remaining slices (not started)
 
-6. Full-stack Compose and end-to-end tests: automatic non-destructive migration/
-   initial seeding, web/API/database/mail inbox, health checks, persistent volumes,
-   one-command first launch, start/stop/restart verification, and a complete browser flow.
 7. Deployment: select a host with the user; prepare HTTPS, private internal
    services, credentials, persistence/backups, and deployment validation. Deploy
    only after the deployment target and authority are established.

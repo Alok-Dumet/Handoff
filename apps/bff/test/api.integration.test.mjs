@@ -1131,6 +1131,37 @@ test('real SMTP delivery uses saved receipts, concurrent workers claim once, and
   );
 });
 
+test('startup seed fills missing records without overwriting prices, locations, accounts or bookings', async () => {
+  const prisma = app.get(PrismaService);
+  const account = await prisma.user.findUnique({
+    where: { email: 'demo@handoff.local' },
+  });
+  const count = await prisma.booking.count();
+  await prisma.vehicle.update({
+    where: { id: 'veh_010' },
+    data: { pricePerDay: 123 },
+  });
+  await prisma.location.update({
+    where: { id: 'loc_lax' },
+    data: { name: 'Preserved location' },
+  });
+  run(process.execPath, ['dist/seed.js']);
+  assert.equal(
+    (await prisma.vehicle.findUnique({ where: { id: 'veh_010' } })).pricePerDay,
+    123,
+  );
+  assert.equal(
+    (await prisma.location.findUnique({ where: { id: 'loc_lax' } })).name,
+    'Preserved location',
+  );
+  assert.equal(
+    (await prisma.user.findUnique({ where: { id: account.id } })).passwordHash,
+    account.passwordHash,
+  );
+  assert.equal(await prisma.booking.count(), count);
+  assert.equal(await prisma.vehicle.count(), 10);
+});
+
 test('background worker sends new confirmations automatically without an HTTP trigger', async () => {
   await app.close();
   process.env.EMAIL_WORKER_ENABLED = 'true';
