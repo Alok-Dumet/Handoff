@@ -21,15 +21,15 @@ async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return String(port);
 }
-const [webPort, dbPort, smtpPort, inboxPort] = await Promise.all(
-  Array.from({ length: 4 }, freePort),
-);
+const [webPort, dbPort, smtpPort, inboxPort, notificationDbPort] =
+  await Promise.all(Array.from({ length: 5 }, freePort));
 const origin = `http://127.0.0.1:${webPort}`;
 const inbox = `http://127.0.0.1:${inboxPort}`;
 const env = {
   ...process.env,
   WEB_PORT: webPort,
   DB_PORT: dbPort,
+  NOTIFICATIONS_DB_PORT: notificationDbPort,
   SMTP_PORT: smtpPort,
   INBOX_PORT: inboxPort,
   WEB_ORIGIN: origin,
@@ -125,7 +125,11 @@ try {
   await page.getByRole("link", { name: "Find a car", exact: true }).click();
   await page.getByLabel("Pick-up (UTC)", { exact: true }).fill(pickupAt);
   await page.getByLabel("Return (UTC)", { exact: true }).fill(dropoffAt);
-  await page.waitForURL(url => url.searchParams.get("pickupAt") === pickupAt && url.searchParams.get("dropoffAt") === dropoffAt);
+  await page.waitForURL(
+    (url) =>
+      url.searchParams.get("pickupAt") === pickupAt &&
+      url.searchParams.get("dropoffAt") === dropoffAt,
+  );
   await page.locator('a[href^="/vehicles/veh_001?"]').click();
   await page.waitForURL("**/vehicles/veh_001?**");
   await page.waitForFunction(() => {
@@ -156,24 +160,48 @@ try {
     .getByText(`Your HandOff reservation ${booking.id}`, { exact: true })
     .waitFor();
   await popup.close();
-  assert.equal(await page.getByRole("link", { name: "Your bookings", exact: true }).count(), 0);
-  assert.equal(await page.getByRole("link", { name: "Browse cars", exact: true }).count(), 0);
+  assert.equal(
+    await page
+      .getByRole("link", { name: "Your bookings", exact: true })
+      .count(),
+    0,
+  );
+  assert.equal(
+    await page.getByRole("link", { name: "Browse cars", exact: true }).count(),
+    0,
+  );
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  assert.equal(await page.locator("header").evaluate(header => header.getBoundingClientRect().top), 0);
+  assert.equal(
+    await page
+      .locator("header")
+      .evaluate((header) => header.getBoundingClientRect().top),
+    0,
+  );
   await page.getByRole("link", { name: "Account", exact: true }).click();
   await page.waitForURL(`${origin}/account`);
-  assert.equal(await page.getByRole("link", { name: "Browse cars", exact: true }).count(), 0);
-  await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Vehicles", exact: true }).click();
+  assert.equal(
+    await page.getByRole("link", { name: "Browse cars", exact: true }).count(),
+    0,
+  );
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Vehicles", exact: true })
+    .click();
   await page.waitForURL(`${origin}/vehicles`);
-  assert.equal(await page.getByRole("button", { name: "Find available cars" }).count(), 0);
+  assert.equal(
+    await page.getByRole("button", { name: "Find available cars" }).count(),
+    0,
+  );
   await page.getByLabel("Pick-up (UTC)", { exact: true }).fill(pickupAt);
-  await page.waitForURL(url => url.searchParams.get("pickupAt") === pickupAt);
+  await page.waitForURL((url) => url.searchParams.get("pickupAt") === pickupAt);
   assert.equal(await page.locator('a[href^="/vehicles/veh_001?"]').count(), 0);
   await page.getByLabel("Pick-up (UTC)", { exact: true }).fill("");
-  await page.waitForURL(url => !url.searchParams.has("pickupAt"));
+  await page.waitForURL((url) => !url.searchParams.has("pickupAt"));
   await page.locator('a[href="/vehicles/veh_001"]').waitFor();
   await page.getByLabel("Return (UTC)", { exact: true }).fill(dropoffAt);
-  await page.waitForURL(url => url.searchParams.get("dropoffAt") === dropoffAt);
+  await page.waitForURL(
+    (url) => url.searchParams.get("dropoffAt") === dropoffAt,
+  );
   assert.equal(await page.locator('a[href^="/vehicles/veh_001?"]').count(), 0);
   await page.getByRole("link", { name: "Bookings", exact: true }).click();
   await page.waitForURL(`${origin}/bookings`);
@@ -225,6 +253,7 @@ try {
   );
 
   await compose(["stop", "mailpit"]);
+  await compose(["stop", "notifications"]);
   const vehicle = await (await fetch(`${origin}/api/vehicles/veh_002`)).json();
   const quote = await (
     await fetch(
@@ -262,6 +291,43 @@ try {
       ).status === "retrying",
     "mail outage schedules retry",
   );
+  assert.equal(
+    await compose([
+      "exec",
+      "-T",
+      "notifications-db",
+      "psql",
+      "-U",
+      "notifications",
+      "-d",
+      "notifications",
+      "-tAc",
+      "SELECT count(*) FROM confirmation_emails",
+    ]),
+    "1",
+    "checkout succeeds with Notifications offline",
+  );
+  await compose(["start", "notifications"]);
+  await waitFor(
+    async () =>
+      (await compose([
+        "exec",
+        "-T",
+        "notifications-db",
+        "psql",
+        "-U",
+        "notifications",
+        "-d",
+        "notifications",
+        "-tAc",
+        'SELECT count(*) FROM confirmation_emails WHERE "lastError" IS NOT NULL',
+      ])) === "1",
+    "Notifications accepts the saved outbox and retries SMTP independently",
+    120,
+  );
+  console.log(
+    "PASS Notifications outage does not block checkout; accepted delivery persists in its own database",
+  );
   await sql(
     "UPDATE vehicles SET \"pricePerDay\"=123 WHERE id='veh_010'; UPDATE locations SET name='Preserved branch' WHERE id='loc_lax'; UPDATE users SET name='Preserved demo' WHERE email='demo@handoff.local';",
   );
@@ -277,7 +343,7 @@ try {
         .filter(Boolean)
         .flatMap((line) => JSON.parse(line));
       return (
-        services.length === 4 &&
+        services.length === 6 &&
         services.every(
           (service) =>
             service.State === "running" && service.Health === "healthy",
@@ -321,6 +387,21 @@ try {
     2,
   );
   assert.equal(await sql("SELECT count(*) FROM confirmation_emails"), "2");
+  assert.equal(
+    await compose([
+      "exec",
+      "-T",
+      "notifications-db",
+      "psql",
+      "-U",
+      "notifications",
+      "-d",
+      "notifications",
+      "-tAc",
+      "SELECT count(*) FROM confirmation_emails",
+    ]),
+    "2",
+  );
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
   console.log(
@@ -328,7 +409,9 @@ try {
   );
 } catch (error) {
   try {
-    console.error(await compose(["logs", "--tail", "20", "api", "web"]));
+    console.error(
+      await compose(["logs", "--tail", "20", "api", "web", "notifications"]),
+    );
   } catch {}
   throw error;
 } finally {

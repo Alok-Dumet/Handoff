@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emailConfig, retryDelay } from "../apps/bff/src/email/email.config.ts";
+import { emailConfig, retryDelay } from "../apps/notifications/src/email.config.ts";
 import { confirmationMessage } from "../apps/bff/src/email/confirmation-message.ts";
 
 test("SMTP defaults are local and authenticated SMTP requires TLS by default", () => {

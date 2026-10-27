@@ -8,10 +8,11 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test:smoke": "node scripts/smoke-test.mjs",
-    "test:history": "pnpm --filter @handoff/bff... build && node scripts/history-browser.mjs",
+    "test:history": "pnpm --filter @handoff/bff... --filter @handoff/notifications... build && node scripts/history-browser.mjs",
     "test:compose": "node scripts/compose-browser.mjs",
     "test": "pnpm --filter @handoff/contracts build && node --test scripts/*.test.mjs",
-    "test:api": "pnpm --filter @handoff/bff... build && node --test apps/bff/test/*.test.mjs"
+    "test:api": "pnpm --filter @handoff/bff... build && node --test apps/bff/test/*.test.mjs",
+    "test:notifications": "pnpm --filter @handoff/notifications... build && node --test apps/notifications/test/*.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.64.1",

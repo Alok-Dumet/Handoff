@@ -122,15 +122,12 @@ The integration tests use a separate disposable Docker database, never the local
 - `WEB_ORIGIN`: exact website origin for CSRF checks; defaults to `http://localhost:3000`.
   Set the public HTTPS origin when deploying; it enables Secure session cookies
   and supplies the origin for private booking links in confirmations.
-- `SMTP_HOST` / `SMTP_PORT`: defaults to `127.0.0.1:1025` (local Mailpit).
-- `SMTP_SECURE`: direct TLS, default false; use true with port 465.
-- `SMTP_REQUIRE_TLS`: require STARTTLS, default true with SMTP credentials unless
-  direct TLS is enabled. Use true with external providers on port 587.
-- `SMTP_USER` / `SMTP_PASSWORD`: optional; set both or neither.
-- `EMAIL_FROM`: defaults to `HandOff <no-reply@handoff.local>`; external SMTP
-  typically requires an address verified with that provider.
-- `EMAIL_WORKER_ENABLED`: defaults to true. Set false to pause the background
-  worker; successful bookings still queue their confirmations.
+- `NOTIFICATIONS_URL`: internal Notifications origin, default `http://127.0.0.1:3002`.
+- `NOTIFICATIONS_SERVICE_KEY`: shared internal authentication key. Required in
+  production; Compose supplies a local demo value. Replace it before deployment.
+- `EMAIL_WORKER_ENABLED`: defaults to true. False pauses outbox forwarding/status
+  synchronization while successful bookings still queue confirmations.
+- SMTP settings now belong to `apps/notifications/.env`, not this API.
 
 ## Durable email delivery
 
@@ -141,24 +138,20 @@ Existing bookings are not backfilled. Public status is `not_requested`, `queued`
 `retrying`, or `sent`; the endpoint never exposes message content, SMTP errors,
 credentials, or another account's delivery status.
 
-The API polls every 5 seconds, claims up to 10 jobs per batch using PostgreSQL
-`FOR UPDATE SKIP LOCKED`, and releases the database lock before SMTP. Claims carry
-a unique token and a five-minute lease, allowing recovery after a crashed worker.
-Failures retry after 5s, 10s, 20s, etc., capped at one hour, without a retry limit.
-Logs and stored errors omit raw provider responses and credentials. Graceful
-shutdown stops polling and finishes the current attempt before closing Prisma.
+The API polls its outbox every five seconds, claims rows with `SKIP LOCKED`, and
+forwards immutable messages to Notifications over authenticated HTTP. Timeouts and
+service failures retry with backoff; replaying an accepted event returns its current
+status without creating another delivery. The cached owner-visible status updates
+on subsequent polls. Already-sent rows are never forwarded during upgrades.
 
-Delivery is **at least once**: a crash after SMTP acceptance but before the success
-write can lead to a retry. Stable Message-ID values let the configured local inbox
-deduplicate that case; external providers may still show duplicates. `sent` means
-SMTP accepted the message, not a guarantee that a remote mailbox delivered/read it.
-No SMTP request is part of checkout, so mail outages cannot roll back a booking.
+Notifications owns its SMTP queue and database. Once accepted, sending and SMTP
+retries continue independently of Rental. Neither service reads the other's tables.
+The existing outbox table remains in the rental database to preserve atomic booking
+creation and old delivery status. No HTTP or SMTP call occurs inside checkout.
 
-The local Compose inbox uses a persistent volume, localhost-only SMTP/UI ports,
-and disables automatic remote version checks. Configuration references:
-[Mailpit Docker](https://mailpit.axllent.org/docs/install/docker/),
-[Mailpit runtime options](https://mailpit.axllent.org/docs/configuration/runtime-options/),
-[Nodemailer SMTP](https://nodemailer.com/smtp).
+See [Notifications](../notifications/README.md) for SMTP settings, delivery guarantees
+and its internal API. The Docker inbox remains local and persistent; no external
+email account or credentials are required for the demo.
 
 `REFDATA_URL`, `CUSTOMER_SERVICE_URL`, `RESERVATION_SERVICE_URL`,
 `BFF_INTERNAL_AUTH_SECRET`, and `STRIPE_WEBHOOK_SECRET` are no longer used.

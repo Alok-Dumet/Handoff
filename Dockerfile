@@ -10,11 +10,13 @@ WORKDIR /workspace
 FROM toolchain AS dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/bff/package.json apps/bff/package.json
+COPY apps/notifications/package.json apps/notifications/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY libs/contracts/package.json libs/contracts/package.json
 RUN --mount=type=cache,id=handoff-pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY apps/bff apps/bff
+COPY apps/notifications apps/notifications
 COPY apps/web apps/web
 COPY libs/contracts libs/contracts
 RUN pnpm --filter @handoff/contracts build
@@ -52,3 +54,18 @@ COPY --from=web-build --chown=node:node /workspace/apps/web/public ./apps/web/pu
 USER node
 EXPOSE 3000
 CMD ["node", "apps/web/server.js"]
+
+FROM dependencies AS notifications-build
+RUN pnpm --filter @handoff/notifications build \
+    && pnpm --filter @handoff/notifications deploy --legacy --prod /out/notifications
+
+FROM toolchain AS notifications
+WORKDIR /app
+ENV NODE_ENV=production
+ENV CHECKPOINT_DISABLE=1
+ENV PRISMA_HIDE_UPDATE_MESSAGE=true
+COPY --from=notifications-build --chown=node:node /out/notifications ./
+COPY --chown=node:node infra/notifications-entrypoint.sh ./entrypoint.sh
+USER node
+EXPOSE 3002
+CMD ["sh", "/app/entrypoint.sh"]

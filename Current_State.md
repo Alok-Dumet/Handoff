@@ -1,26 +1,30 @@
 # Handoff — Current State
 
-Updated October 26, 2026. This describes the implemented application, not the older
+Updated October 27, 2026. This describes the implemented application, not the older
 microservices design or a future deployment.
 
 ## Architecture
 
-Handoff is a car rental demo with two application processes and two supporting
-services, all runnable through the root `compose.yaml`:
+Handoff is migrating to three domain microservices: Identity, Rental, and
+Notifications, behind a thin API gateway. The first extraction is implemented:
+there are currently **two backend applications**, not yet the final three.
+See [current_plan.md](current_plan.md) for the remaining reviewed slices.
 
 | Component | Implementation | Responsibility |
 | --- | --- | --- |
-| Web | `apps/web`: Next.js, React, TypeScript, Tailwind CSS | Pages, local account UI, search, checkout, history and receipts |
-| API | `apps/bff`: NestJS, Prisma, Nodemailer | Authentication, inventory, pricing, bookings and email delivery |
-| Database | PostgreSQL 17 | Locations, vehicles, users, sessions, bookings and confirmation queue |
-| Inbox | Mailpit | Receives SMTP messages and displays them locally |
-| Contracts | `libs/contracts`: Zod and TypeScript | Shared request/response validation and types |
+| Web | `apps/web`: Next.js, React, TypeScript, Tailwind CSS | Account UI, search, checkout, history and receipts |
+| Rental API | `apps/bff`: NestJS and Prisma | Inventory, pricing, bookings and transactional notification outbox; temporarily still owns accounts/sessions |
+| Notifications | `apps/notifications`: NestJS, Prisma and Nodemailer | Idempotent confirmation acceptance, SMTP delivery and retries |
+| Rental database | PostgreSQL 17, existing `refdata` database | Locations, vehicles, users, sessions, bookings and rental outbox |
+| Notifications database | Separate PostgreSQL 17 instance/database | Accepted confirmations and delivery state |
+| Inbox | Mailpit | Captures actual SMTP messages locally |
+| Contracts | `libs/contracts`: Zod and TypeScript | Shared public and internal request/response validation |
 
-The workspace uses pnpm and Turborepo. The API owns its schema and migrations in
-`apps/bff/prisma`. The former customer, reservation and refdata applications,
-Clerk integration, mock payment endpoints and extra journey workflows are removed.
-The retained `bff` directory is now the single application API. Existing database
-and volume names still contain `refdata` to preserve local data.
+Compose runs six services. Containers for databases, frontend and inbox are not
+backend microservices. The workspace uses pnpm and Turborepo. Each backend owns its
+schema and migrations; neither queries the other's database. The old mock domain
+services, Clerk and Stripe remain removed. Existing `refdata` names are retained
+to preserve data; these do not indicate a separate refdata microservice.
 
 ## Implemented rental flow
 
@@ -87,11 +91,16 @@ list. Inventory, accounts, sessions, bookings and email jobs are database-backed
 
 ## How confirmation email works
 
-Checkout saves one confirmation job in the same database transaction as the
-booking. A background worker sends the saved HTML/text message through Nodemailer
-using SMTP. It includes the rental details, agreed price and private booking link.
-Failures are retried with increasing delays; pending jobs survive restarts and an
-SMTP outage does not prevent booking.
+Checkout saves one immutable confirmation in Rental's transactional outbox. A
+background relay forwards it to Notifications over authenticated HTTP, with retries
+and idempotent acceptance by booking ID. Notifications stores the message in its
+own database and runs its own SMTP worker. Rental polls the same acceptance
+endpoint to cache delivery status for the owner-only receipt UI.
+
+Both queues survive restarts. Notifications outages do not block checkout; SMTP
+outages do not prevent Notifications from accepting work. Once accepted, sending
+continues even if Rental is offline. Already-sent rental records are not replayed,
+and previously queued records transfer without a destructive migration.
 
 By default, SMTP goes to the bundled Mailpit container. Open
 http://localhost:8025 or use the receipt's inbox link to read the actual captured
@@ -107,12 +116,13 @@ received it.
 
 External delivery is optional and requires a working outbound SMTP service and an
 appropriate sender. Each operator supplies their own configuration; the project
-contains no personal email credentials. The API supports `SMTP_HOST`, `SMTP_PORT`,
-`SMTP_USER`/`SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_REQUIRE_TLS`, `EMAIL_FROM`, and
-`WEB_ORIGIN`. Host development reads `apps/bff/.env`; the root Compose file
-explicitly selects Mailpit, so external delivery there requires overriding the
-API service's environment too. Merely editing `apps/bff/.env` does not reconfigure
-the container. Local SMTP capture keeps the default demo self-contained.
+contains no personal email credentials. Notifications supports `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`/`SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_REQUIRE_TLS`, and `EMAIL_FROM`.
+`WEB_ORIGIN` remains in Rental for booking links. Host SMTP settings
+now live in `apps/notifications/.env`; Compose explicitly selects Mailpit, so
+external delivery requires overriding the Notifications service environment.
+The internal routes require a shared service key and are not host-exposed.
+See [Notifications configuration](apps/notifications/README.md).
 
 SMTP delivery is at least once. Mailpit deduplicates stable message IDs, but an
 external SMTP service can receive duplicates after a crash at the acceptance
@@ -137,7 +147,7 @@ are preserved. Application containers run as non-root; web assets are packaged
 in a Next.js standalone build. Health checks cover the API/database and web proxy.
 
 The project name remains `infra`, reusing `infra_refdata-db-data` and
-`infra_mailpit-data`. Stop/start and ordinary `down` preserve these volumes;
+`infra_mailpit-data`, plus the new `infra_notifications-db-data`. Stop/start and ordinary `down` preserve these volumes;
 `down --volumes` deletes them. Database and inbox ports bind to localhost.
 Optional port/origin overrides are listed in [.env.example](.env.example).
 
@@ -148,9 +158,10 @@ before running a development server on the same port:
 
 ```bash
 pnpm install
-docker compose stop api web # only if the full stack was previously created
+docker compose stop api web notifications # only if the full stack was previously created
 docker compose -f infra/docker-compose.yml up -d
 pnpm --filter @handoff/bff db:migrate
+pnpm --filter @handoff/notifications db:migrate
 pnpm --filter @handoff/bff... build
 pnpm --filter @handoff/bff db:seed
 pnpm dev
@@ -165,6 +176,7 @@ pnpm build
 pnpm lint
 pnpm test
 pnpm test:api
+pnpm test:notifications
 pnpm exec playwright install chromium
 pnpm test:history
 pnpm test:compose
@@ -182,15 +194,17 @@ Read-only smoke checks against a running Docker stack:
 BFF_URL=http://localhost:3000/api pnpm test:smoke
 ```
 
-Last implementation validation: builds and lint passed; 9 unit tests, 22 API tests,
-38 smoke checks and the Compose browser regression passed. Coverage includes
-ownership, concurrent bookings, retry safety, exact turnaround boundaries, email
-recovery and persistence. This documentation update does not rerun those suites.
+The migration adds separate Notifications integration checks for authenticated
+contracts, duplicate events, independent storage, real SMTP, worker claims and
+restart recovery. Rental tests cover outbox atomicity, unavailable Notifications,
+lost acknowledgements and preservation of previously sent rows. Final validation
+results are tracked in [current_plan.md](current_plan.md).
 
 ## Remaining scope
 
-Public deployment has not been completed. The next implementation slice is to
-select a host and prepare HTTPS, deployment credentials, persistence/backups,
+Identity extraction and gateway/Rental separation are the next architecture
+slices. The additional rental/account API features follow that migration. Public
+deployment remains future work requiring a host, HTTPS, credentials, backups,
 basic abuse protection and hosted validation. Password recovery and email
 verification are not implemented. There is no payment collection, physical return
 workflow or one-way rental journey; scheduled return is treated as return in this demo.

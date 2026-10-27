@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  runtime = "nodejs"
+  moduleFormat = "cjs"
+}
+datasource db {
+  provider = "postgresql"
+}
+model ConfirmationEmail {
+  bookingId String @id
+  recipient String
+  subject String
+  text String
+  html String
+  messageId String @unique
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  lockedUntil DateTime?
+  lockToken String?
+  lastError String?
+  sentAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([sentAt, nextAttemptAt])
+  @@map("confirmation_emails")
+}

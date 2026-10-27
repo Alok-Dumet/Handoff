@@ -19,6 +19,23 @@ services:
       timeout: 5s
       retries: 5
 
+  notifications-db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: notifications
+      POSTGRES_DB: notifications
+    ports:
+      - "127.0.0.1:${NOTIFICATIONS_DB_PORT:-5433}:5432"
+    volumes:
+      - notifications-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notifications -d notifications"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   mailpit:
     image: axllent/mailpit:v1.27.4
     container_name: ${HANDOFF_MAIL_CONTAINER:-handoff-mailpit}
@@ -34,5 +51,6 @@ services:
       - mailpit-data:/data
 
 volumes:
+  notifications-db-data:
   refdata-db-data:
   mailpit-data:

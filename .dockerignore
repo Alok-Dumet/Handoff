@@ -16,7 +16,7 @@ zdocs
 **/.env.*
 **/.clerk
 **/*.log
-apps/bff/src/generated
+apps/*/src/generated
 **/test
 scripts
 *.drawio*

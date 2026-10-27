@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -17,9 +18,6 @@ const { databaseUrl } = require('../dist/database-url.js');
 const contracts = require('@handoff/contracts');
 const containerName = `handoff-api-test-${randomUUID()}`;
 let containerId;
-let mailContainerId;
-let mailUrl;
-let smtpPort;
 let app;
 let base;
 let savedBooking;
@@ -74,35 +72,14 @@ before(
     process.env.NODE_ENV = 'test';
     process.env.WEB_ORIGIN = 'http://localhost:3000';
     process.env.EMAIL_WORKER_ENABLED = 'false';
+    process.env.NOTIFICATIONS_URL = 'http://127.0.0.1:1';
+    process.env.NOTIFICATIONS_SERVICE_KEY = 'test-notifications-key';
     process.env.SMTP_HOST = '127.0.0.1';
     process.env.SMTP_SECURE = 'false';
     process.env.SMTP_REQUIRE_TLS = 'false';
     delete process.env.SMTP_USER;
     delete process.env.SMTP_PASSWORD;
     process.env.EMAIL_FROM = 'HandOff <no-reply@handoff.local>';
-    mailContainerId = run('docker', [
-      'run',
-      '-d',
-      '--name',
-      `handoff-mail-test-${randomUUID()}`,
-      '-p',
-      '127.0.0.1::1025',
-      '-p',
-      '127.0.0.1::8025',
-      '-v',
-      '/data',
-      '-e',
-      'MP_DATABASE=/data/mailpit.db',
-      '-e',
-      'MP_DISABLE_VERSION_CHECK=true',
-      '-e',
-      'MP_IGNORE_DUPLICATE_IDS=true',
-      'axllent/mailpit:v1.27.4',
-    ]);
-    const mail = JSON.parse(run('docker', ['inspect', mailContainerId]))[0];
-    smtpPort = mail.NetworkSettings.Ports['1025/tcp'][0].HostPort;
-    mailUrl = `http://127.0.0.1:${mail.NetworkSettings.Ports['8025/tcp'][0].HostPort}`;
-    process.env.SMTP_PORT = smtpPort;
     let ready = false;
     for (let attempt = 0; attempt < 60; attempt++) {
       try {
@@ -138,7 +115,6 @@ after(async () => {
     await app?.close();
   } finally {
     if (containerId) run('docker', ['rm', '-f', '-v', containerId]);
-    if (mailContainerId) run('docker', ['rm', '-f', '-v', mailContainerId]);
   }
 });
 
@@ -960,30 +936,22 @@ test('confirmation jobs are atomic, unique per booking, private and absent for l
   );
 });
 
-test('SMTP outage leaves bookings successful and pending mail survives restart with backoff', async () => {
-  await app.close();
-  process.env.SMTP_PORT = '1'; // A closed local port; never contact an external provider.
-  await startApi();
-  const input = await checkoutInput(
-    'veh_008',
-    '2027-12-01T10:00',
-    '2027-12-02T10:00',
-  );
+test('Notifications outage preserves checkout and outbox retries across API restart', async () => {
   const { booking } = await request(
     '/bookings',
     201,
-    input,
+    await checkoutInput('veh_008', '2027-12-01T10:00', '2027-12-02T10:00'),
     'POST',
     aliceCookie,
   );
   await app.get(EmailService).processDue();
-  const job = await app
+  let job = await app
     .get(PrismaService)
     .confirmationEmail.findUnique({ where: { bookingId: booking.id } });
   assert.equal(job.attempts, 1);
+  assert.equal(job.lastError, 'Notification service unavailable');
   assert.ok(job.nextAttemptAt > new Date());
   assert.equal(job.lockedUntil, null);
-  assert.equal(job.lastError, 'Delivery attempt failed');
   assert.equal(
     (
       await request(
@@ -1009,138 +977,89 @@ test('SMTP outage leaves bookings successful and pending mail survives restart w
     'confirmed',
   );
   await app.get(EmailService).processDue();
-  assert.equal(
-    (
-      await app
-        .get(PrismaService)
-        .confirmationEmail.findUnique({ where: { bookingId: booking.id } })
-    ).attempts,
-    1,
-    'backoff prevents immediate retry',
-  );
   await app.close();
-  process.env.SMTP_PORT = smtpPort;
   await startApi();
-  assert.equal(
-    (
-      await app
-        .get(PrismaService)
-        .confirmationEmail.findUnique({ where: { bookingId: booking.id } })
-    ).attempts,
-    1,
-  );
+  job = await app
+    .get(PrismaService)
+    .confirmationEmail.findUnique({ where: { bookingId: booking.id } });
+  assert.equal(job.attempts, 1, 'backoff and state survive restart');
 });
 
-test('real SMTP delivery uses saved receipts, concurrent workers claim once, and expired leases recover', async () => {
-  const prisma = app.get(PrismaService);
-  await prisma.confirmationEmail.updateMany({
-    data: { nextAttemptAt: new Date(0) },
-  });
-  // A second Nest instance represents another API process sharing the queue.
-  const second = await NestFactory.create(AppModule, { logger: false });
-  await second.init();
-  try {
-    await Promise.all([
-      app.get(EmailService).processDue(),
-      second.get(EmailService).processDue(),
-    ]);
-  } finally {
-    await second.close();
-  }
-  const jobs = await prisma.confirmationEmail.findMany();
-  assert.ok(jobs.every((job) => job.sentAt && !job.lockedUntil));
-  assert.ok(
-    jobs.every((job) => job.attempts === 2),
-    'each job has one failed attempt and one claimed successful attempt',
-  );
-  const listing = await (await fetch(`${mailUrl}/api/v1/messages`)).json();
-  assert.equal(listing.total, jobs.length);
-  const summary = listing.messages.find((message) =>
-    message.Subject.includes(savedBooking.id),
-  );
-  assert.ok(summary);
-  const message = await (
-    await fetch(`${mailUrl}/api/v1/message/${summary.ID}`)
-  ).json();
-  assert.equal(message.To[0].Address, alice.email);
-  assert.ok(message.Text.includes(savedBooking.totalLabel));
-  assert.ok(message.Text.includes('GPS navigation'));
-  assert.ok(message.HTML.includes(`/bookings/${savedBooking.id}`));
-  const status = await rawRequest(
-    `/bookings/${savedBooking.id}/email`,
-    undefined,
-    'GET',
-    aliceCookie,
-  );
-  assert.equal(status.headers.get('cache-control'), 'no-store');
-  assert.equal((await status.json()).status, 'sent');
-  await app.get(EmailService).processDue();
-  assert.equal(
-    (await (await fetch(`${mailUrl}/api/v1/messages`)).json()).total,
-    jobs.length,
-  );
-  // Model a crash after SMTP accepted a message but before recording success.
-  // An unexpired claim must not be stolen; an expired one must be retried.
-  await prisma.confirmationEmail.update({
-    where: { bookingId: savedBooking.id },
-    data: {
-      sentAt: null,
-      lockedUntil: new Date(Date.now() + 60000),
-      lockToken: 'abandoned',
-    },
-  });
-  await app.get(EmailService).processDue();
-  assert.equal(
-    (
-      await prisma.confirmationEmail.findUnique({
-        where: { bookingId: savedBooking.id },
-      })
-    ).sentAt,
-    null,
-  );
-  await prisma.confirmationEmail.update({
-    where: { bookingId: savedBooking.id },
-    data: { lockedUntil: new Date(0) },
-  });
-  await app.get(EmailService).processDue();
-  assert.ok(
-    (
-      await prisma.confirmationEmail.findUnique({
-        where: { bookingId: savedBooking.id },
-      })
-    ).sentAt,
-  );
-  assert.equal(
-    (await (await fetch(`${mailUrl}/api/v1/messages`)).json()).total,
-    jobs.length,
-    'local inbox deduplicates stable Message-ID',
-  );
-  run('docker', ['stop', mailContainerId]);
-  run('docker', ['start', mailContainerId]);
-  const restarted = JSON.parse(run('docker', ['inspect', mailContainerId]))[0];
-  smtpPort = restarted.NetworkSettings.Ports['1025/tcp'][0].HostPort;
-  process.env.SMTP_PORT = smtpPort;
-  mailUrl = `http://127.0.0.1:${restarted.NetworkSettings.Ports['8025/tcp'][0].HostPort}`;
-  let total;
-  for (let i = 0; i < 30; i++) {
-    try {
-      total = (
-        await (
-          await fetch(`${mailUrl}/api/v1/messages`, {
-            signal: AbortSignal.timeout(1000),
-          })
-        ).json()
-      ).total;
-      break;
-    } catch {
-      await delay(100);
+// This HTTP contract fixture isolates rental outbox behavior. Real Notifications,
+// its own database, and SMTP are covered by test:notifications and test:compose.
+test('outbox replays a lost acknowledgement safely and projects remote delivery status', async () => {
+  const received = new Map();
+  let dropReply = true;
+  const server = createServer(async (req, res) => {
+    assert.equal(req.headers['x-service-key'], 'test-notifications-key');
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const payload = JSON.parse(Buffer.concat(chunks).toString());
+    contracts.ConfirmationDeliverySchema.parse(payload);
+    if (received.has(payload.bookingId))
+      assert.deepEqual(payload, received.get(payload.bookingId));
+    received.set(payload.bookingId, payload);
+    if (dropReply) {
+      dropReply = false;
+      req.socket.destroy();
+      return;
     }
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify({ status: 'sent', sentAt: new Date().toISOString() }),
+    );
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    await app.close();
+    process.env.NOTIFICATIONS_URL = `http://127.0.0.1:${server.address().port}`;
+    await startApi();
+    const prisma = app.get(PrismaService);
+    const previouslySent = await prisma.confirmationEmail.findFirst();
+    await prisma.confirmationEmail.update({
+      where: { bookingId: previouslySent.bookingId },
+      data: { sentAt: new Date() },
+    });
+    await prisma.confirmationEmail.updateMany({
+      data: { nextAttemptAt: new Date(0) },
+    });
+    await app.get(EmailService).processDue();
+    await prisma.confirmationEmail.updateMany({
+      data: { nextAttemptAt: new Date(0) },
+    });
+    const second = await NestFactory.create(AppModule, { logger: false });
+    await second.init();
+    try {
+      await Promise.all([
+        app.get(EmailService).processDue(),
+        second.get(EmailService).processDue(),
+      ]);
+    } finally {
+      await second.close();
+    }
+    const jobs = await prisma.confirmationEmail.findMany();
+    assert.ok(jobs.every((job) => job.sentAt && !job.lockedUntil));
+    assert.equal(received.size, jobs.length - 1);
+    assert.equal(
+      received.has(previouslySent.bookingId),
+      false,
+      'pre-extraction sent messages never replay',
+    );
+    assert.equal(
+      (
+        await request(
+          `/bookings/${savedBooking.id}/email`,
+          200,
+          undefined,
+          'GET',
+          aliceCookie,
+        )
+      ).status,
+      'sent',
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
-  assert.equal(
-    total,
-    jobs.length,
-    'captured messages survive inbox stop/start',
-  );
 });
 
 test('startup seed fills missing records without overwriting prices, locations, accounts or bookings', async () => {
@@ -1172,36 +1091,6 @@ test('startup seed fills missing records without overwriting prices, locations, 
   );
   assert.equal(await prisma.booking.count(), count);
   assert.equal(await prisma.vehicle.count(), 10);
-});
-
-test('background worker sends new confirmations automatically without an HTTP trigger', async () => {
-  await app.close();
-  process.env.EMAIL_WORKER_ENABLED = 'true';
-  await startApi();
-  const input = await checkoutInput(
-    'veh_007',
-    '2027-12-10T10:00',
-    '2027-12-11T10:00',
-  );
-  const { booking } = await request(
-    '/bookings',
-    201,
-    input,
-    'POST',
-    aliceCookie,
-  );
-  let sent = false;
-  for (let i = 0; i < 70; i++) {
-    const job = await app
-      .get(PrismaService)
-      .confirmationEmail.findUnique({ where: { bookingId: booking.id } });
-    if (job.sentAt) {
-      sent = true;
-      break;
-    }
-    await delay(100);
-  }
-  assert.ok(sent, 'background poll sends within the configured interval');
 });
 
 test('expired and forged sessions cannot authenticate, and logout revokes server-side access', async () => {

@@ -15,12 +15,14 @@ const webRequire = createRequire(`${root}/apps/web/package.json`);
 const { NestFactory } = require("@nestjs/core");
 const { AppModule } = require("./dist/app.module.js");
 const origin = "http://127.0.0.1:3400";
-let containerId, mailContainerId, app, browser, next;
+let containerId, mailContainerId, app, notifications, browser, next;
+const notificationsCwd = `${root}/apps/notifications`;
+const notificationsRequire = createRequire(`${notificationsCwd}/package.json`);
 let delayHistory = false;
 let nextLogs = "";
-function run(command, args) {
+function run(command, args, workingDir = cwd) {
   return execFileSync(command, args, {
-    cwd,
+    cwd: workingDir,
     encoding: "utf8",
     timeout: 60000,
     stdio: "pipe",
@@ -104,6 +106,37 @@ try {
     "deploy",
   ]);
   run(process.execPath, [require.resolve("tsx/cli"), "prisma/seed.ts"]);
+  run("docker", [
+    "exec",
+    containerId,
+    "psql",
+    "-U",
+    "handoff_test",
+    "-d",
+    "handoff_test",
+    "-c",
+    "CREATE DATABASE notifications_test",
+  ]);
+  process.env.NOTIFICATIONS_DATABASE_URL = `postgresql://handoff_test:handoff_test@127.0.0.1:${port}/notifications_test`;
+  process.env.NOTIFICATIONS_SERVICE_KEY = "history-test-service-key";
+  run(
+    process.execPath,
+    [
+      resolve(
+        dirname(notificationsRequire.resolve("prisma/package.json")),
+        "build/index.js",
+      ),
+      "migrate",
+      "deploy",
+    ],
+    notificationsCwd,
+  );
+  notifications = await NestFactory.create(
+    notificationsRequire("./dist/app.module.js").AppModule,
+    { logger: false },
+  );
+  await notifications.listen(0, "127.0.0.1");
+  process.env.NOTIFICATIONS_URL = await notifications.getUrl();
   app = await NestFactory.create(AppModule, { logger: false });
   app.use((req, res, next) => {
     if (delayHistory && req.path === "/bookings") setTimeout(next, 1200);
@@ -204,6 +237,16 @@ try {
     .filter({ hasText: "Confirmation email is queued" })
     .waitFor();
   const { EmailService } = require("./dist/email/email.service.js");
+  await app.get(EmailService).processDue();
+  await notifications
+    .get(
+      notificationsRequire("./dist/notifications.service.js")
+        .NotificationsService,
+    )
+    .processDue();
+  await app
+    .get(require("./dist/prisma/prisma.service.js").PrismaService)
+    .confirmationEmail.updateMany({ data: { nextAttemptAt: new Date(0) } });
   await app.get(EmailService).processDue();
   await page
     .getByRole("status")
@@ -373,6 +416,7 @@ try {
     await Promise.race([new Promise((r) => next.once("exit", r)), delay(3000)]);
   }
   await app?.close();
+  await notifications?.close();
   if (containerId) run("docker", ["rm", "-f", "-v", containerId]);
   if (mailContainerId) run("docker", ["rm", "-f", "-v", mailContainerId]);
 }
