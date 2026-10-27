@@ -16,12 +16,14 @@ export class InventoryService {
   async findAll(filter: VehicleFilter = {}): Promise<Vehicle[]> {
     const vehicles = await this.prisma.vehicle.findMany({
       where: {
-        ...(filter.pickupAt &&
-          filter.dropoffAt && {
-            bookings: {
-              none: conflictingWindow(filter.pickupAt, filter.dropoffAt),
-            },
-          }),
+        ...((filter.pickupAt || filter.dropoffAt) && {
+          bookings: {
+            none: conflictingWindow(
+              (filter.pickupAt ?? filter.dropoffAt)!,
+              (filter.dropoffAt ?? filter.pickupAt)!,
+            ),
+          },
+        }),
         ...(filter.classes?.length && { class: { in: filter.classes } }),
         ...(filter.transmission && { transmission: filter.transmission }),
         ...(filter.minSeats !== undefined && {

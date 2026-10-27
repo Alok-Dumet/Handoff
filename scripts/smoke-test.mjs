@@ -35,7 +35,7 @@ await check(
   bff,
   "/vehicles?pickupAt=2027-01-01T10:00&dropoffAt=2027-01-03T10:00",
 );
-await check(bff, "/vehicles?pickupAt=2027-01-01T10:00", 400);
+await check(bff, "/vehicles?pickupAt=2027-01-01T10:00", 200);
 await check(bff, "/geocode?q=Boston&q=LA", 400);
 await check(bff, "/vehicles/nonexistent", 404);
 await check(bff, "/bookings", 401);

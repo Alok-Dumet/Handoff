@@ -168,13 +168,15 @@ export const VehicleFilterSchema = z
   })
   .refine(
     (v) =>
-      (!v.pickupAt && !v.dropoffAt) ||
+      !v.pickupAt ||
+      !v.dropoffAt ||
       (!!v.pickupAt &&
         !!v.dropoffAt &&
         rentalHours(v.pickupAt, v.dropoffAt) >= 1 &&
         rentalDays(v.pickupAt, v.dropoffAt) <= MAX_RENTAL_DAYS),
     {
-      message: "Choose both times, between 1 hour and 90 days apart",
+      message:
+        "When both times are selected, choose between 1 hour and 90 days apart",
       path: ["dropoffAt"],
     },
   );

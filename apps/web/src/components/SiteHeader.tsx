@@ -30,10 +30,10 @@ export default function SiteHeader({ user }: { user: AccountUser | null }) {
   }
 
   return (
-    <header className="absolute inset-x-0 top-0 z-20">
+    <header className="fixed inset-x-0 top-0 z-50 bg-black/90 backdrop-blur">
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-5"
+        className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-5"
       >
         <Link
           href={user ? "/vehicles" : "/"}
@@ -44,7 +44,13 @@ export default function SiteHeader({ user }: { user: AccountUser | null }) {
           </span>
           HandOff
         </Link>
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-1 text-sm">
+          <Link
+            href="/vehicles"
+            className="rounded-full px-2 py-2 text-white/90 hover:bg-white/10"
+          >
+            Vehicles
+          </Link>
           {user ? (
             <>
               <Link

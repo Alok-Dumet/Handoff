@@ -645,6 +645,18 @@ test('availability enforces the full turnaround on both sides, including legacy 
     await hasCar('veh_002', '2027-05-04T00:00', '2027-05-05T00:00'),
     true,
   );
+  for (const key of ['pickupAt', 'dropoffAt']) {
+    const blocked = await request(`/vehicles?${key}=2027-05-03T23:59`, 200);
+    assert.equal(
+      blocked.some((v) => v.id === 'veh_002'),
+      false,
+    );
+    const available = await request(`/vehicles?${key}=2027-05-04T00:00`, 200);
+    assert.equal(
+      available.some((v) => v.id === 'veh_002'),
+      true,
+    );
+  }
   await app.get(PrismaService).booking.update({
     where: { id: 'legacy-unowned' },
     data: { status: 'cancelled' },
@@ -653,7 +665,7 @@ test('availability enforces the full turnaround on both sides, including legacy 
     await hasCar('veh_002', '2027-05-01T00:00', '2027-05-03T00:00'),
     true,
   );
-  await request('/vehicles?pickupAt=2027-05-01T10:00', 400);
+  await request('/vehicles?pickupAt=2027-05-01T10:00', 200);
   await request(
     '/vehicles?pickupAt=2027-05-01T10:00&dropoffAt=2027-05-01T09:00',
     400,

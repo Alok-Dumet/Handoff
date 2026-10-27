@@ -125,8 +125,7 @@ try {
   await page.getByRole("link", { name: "Find a car", exact: true }).click();
   await page.getByLabel("Pick-up (UTC)", { exact: true }).fill(pickupAt);
   await page.getByLabel("Return (UTC)", { exact: true }).fill(dropoffAt);
-  await page.getByRole("button", { name: "Find available cars" }).click();
-  await page.waitForURL("**/vehicles?**");
+  await page.waitForURL(url => url.searchParams.get("pickupAt") === pickupAt && url.searchParams.get("dropoffAt") === dropoffAt);
   await page.locator('a[href^="/vehicles/veh_001?"]').click();
   await page.waitForURL("**/vehicles/veh_001?**");
   await page.waitForFunction(() => {
@@ -157,7 +156,26 @@ try {
     .getByText(`Your HandOff reservation ${booking.id}`, { exact: true })
     .waitFor();
   await popup.close();
-  await page.getByRole("link", { name: "Your bookings", exact: true }).click();
+  assert.equal(await page.getByRole("link", { name: "Your bookings", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("link", { name: "Browse cars", exact: true }).count(), 0);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  assert.equal(await page.locator("header").evaluate(header => header.getBoundingClientRect().top), 0);
+  await page.getByRole("link", { name: "Account", exact: true }).click();
+  await page.waitForURL(`${origin}/account`);
+  assert.equal(await page.getByRole("link", { name: "Browse cars", exact: true }).count(), 0);
+  await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Vehicles", exact: true }).click();
+  await page.waitForURL(`${origin}/vehicles`);
+  assert.equal(await page.getByRole("button", { name: "Find available cars" }).count(), 0);
+  await page.getByLabel("Pick-up (UTC)", { exact: true }).fill(pickupAt);
+  await page.waitForURL(url => url.searchParams.get("pickupAt") === pickupAt);
+  assert.equal(await page.locator('a[href^="/vehicles/veh_001?"]').count(), 0);
+  await page.getByLabel("Pick-up (UTC)", { exact: true }).fill("");
+  await page.waitForURL(url => !url.searchParams.has("pickupAt"));
+  await page.locator('a[href="/vehicles/veh_001"]').waitFor();
+  await page.getByLabel("Return (UTC)", { exact: true }).fill(dropoffAt);
+  await page.waitForURL(url => url.searchParams.get("dropoffAt") === dropoffAt);
+  assert.equal(await page.locator('a[href^="/vehicles/veh_001?"]').count(), 0);
+  await page.getByRole("link", { name: "Bookings", exact: true }).click();
   await page.waitForURL(`${origin}/bookings`);
   await page.locator(`a[href="/bookings/${booking.id}"]`).click();
   await page

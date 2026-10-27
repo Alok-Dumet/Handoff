@@ -219,7 +219,7 @@ try {
   console.log(
     "PASS queued-to-sent confirmation status and real local inbox message",
   );
-  await page.getByRole("link", { name: "Your bookings", exact: true }).click();
+  await page.getByRole("link", { name: "Bookings", exact: true }).click();
   await page.waitForURL(origin + "/bookings");
   const card = page.locator('a[href="/bookings/' + saved.id + '"]');
   await card.getByText(saved.totalLabel, { exact: true }).waitFor();

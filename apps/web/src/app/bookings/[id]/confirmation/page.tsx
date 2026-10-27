@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getBooking } from "@/lib/bookings";
 import BookingReceipt from "@/components/BookingReceipt";
 
@@ -19,14 +18,6 @@ export default async function ConfirmationPage({
       <p className="mt-5 text-sm text-white/60">
         You can find this reservation in your booking history.
       </p>
-      <div className="mt-6 flex flex-wrap gap-6">
-        <Link href="/bookings" className="underline">
-          Your bookings
-        </Link>
-        <Link href="/vehicles" className="underline">
-          Browse cars
-        </Link>
-      </div>
     </main>
   );
 }

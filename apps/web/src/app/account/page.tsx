@@ -25,12 +25,6 @@ export default async function AccountPage() {
         <Link href="/bookings" className="mt-6 block text-white underline">
           View your booking history
         </Link>
-        <Link
-          href="/vehicles"
-          className="mt-8 inline-block rounded-full bg-white px-6 py-3 text-sm font-semibold text-black"
-        >
-          Browse cars
-        </Link>
       </div>
     </div>
   );
