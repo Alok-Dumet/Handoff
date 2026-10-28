@@ -70,7 +70,6 @@ model Booking {
   vehicle       Vehicle       @relation(fields: [vehicleId], references: [id])
   // Older bookings remain unowned; never assign ownership by matching email.
   userId        String?
-  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // Purchase-page reservation details. Nullable because bookings created
   // before the purchase flow existed have none, and backfilling invented
@@ -100,18 +99,6 @@ model Booking {
   @@map("bookings")
 }
 
-model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  name         String
-  passwordHash String
-  createdAt    DateTime  @default(now())
-  sessions     Session[]
-  bookings     Booking[]
-
-  @@map("users")
-}
-
 // One durable delivery intent per booking; SMTP is never called in checkout.
 model ConfirmationEmail {
   bookingId String @id
@@ -131,16 +118,4 @@ model ConfirmationEmail {
 
   @@index([sentAt, nextAttemptAt])
   @@map("confirmation_emails")
-}
-
-model Session {
-  tokenHash String   @id
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([expiresAt])
-  @@map("sessions")
 }

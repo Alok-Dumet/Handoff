@@ -19,9 +19,13 @@ services:
       PORT: "3001"
       DATABASE_URL: postgresql://handoff:handoff@refdata-db:5432/refdata
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:${WEB_PORT:-3000}}
+      IDENTITY_URL: http://identity:3003
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:-handoff-local-identity-key}
       NOTIFICATIONS_URL: http://notifications:3002
       NOTIFICATIONS_SERVICE_KEY: ${NOTIFICATIONS_SERVICE_KEY:-handoff-local-notifications-key}
     depends_on:
+      identity:
+        condition: service_healthy
       refdata-db:
         condition: service_healthy
     healthcheck:
@@ -29,6 +33,44 @@ services:
       interval: 5s
       timeout: 3s
       start_period: 90s
+      retries: 12
+
+  identity-migrate:
+    image: handoff-identity:local
+    # The identity service builds this shared image once before startup.
+    pull_policy: never
+    init: true
+    restart: "no"
+    command: ["sh", "/app/migrate.sh"]
+    environment:
+      NODE_ENV: production
+      IDENTITY_DATABASE_URL: postgresql://identity:identity@identity-db:5432/identity
+      LEGACY_IDENTITY_DATABASE_URL: postgresql://handoff:handoff@refdata-db:5432/refdata
+    depends_on:
+      identity-db:
+        condition: service_healthy
+      refdata-db:
+        condition: service_healthy
+
+  identity:
+    image: handoff-identity:local
+    build:
+      context: .
+      target: identity
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      IDENTITY_DATABASE_URL: postgresql://identity:identity@identity-db:5432/identity
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:-handoff-local-identity-key}
+    depends_on:
+      identity-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3003/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      start_period: 30s
       retries: 12
 
   notifications:

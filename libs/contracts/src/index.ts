@@ -5,3 +5,4 @@ export * from './pricing/index.js';
 export * from './catalog/index.js';
 export * from './bookings/index.js';
 export * from './notifications/index.js';
+export * from './identity/index.js';

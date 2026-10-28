@@ -8,7 +8,6 @@ import {
   VehicleCreateSchema,
 } from '@handoff/contracts';
 import { PrismaClient } from './generated/prisma/client.js';
-import { seedDemoAccount } from './auth/demo-account.js';
 
 // Pick-up branches. Validated against the shared contract so seed data
 // can't drift from the schema.
@@ -162,7 +161,6 @@ const VEHICLES: VehicleCreate[] = VehicleCreateSchema.array().parse([
 async function main() {
   const adapter = new PrismaPg({ connectionString: databaseUrl() });
   const prisma = new PrismaClient({ adapter });
-  await seedDemoAccount(prisma);
 
   // Locations first — vehicles reference them by foreign key.
   for (const loc of LOCATIONS) {

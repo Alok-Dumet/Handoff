@@ -1,101 +1,74 @@
-import { randomBytes } from 'node:crypto';
 import {
-  ConflictException,
   Injectable,
+  ConflictException,
   UnauthorizedException,
+  BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
-  AccountUserSchema,
-  type AccountUser,
+  identityServiceKey,
+  IdentityLoginResultSchema,
+  SessionResponseSchema,
   type Login,
   type Register,
+  type AccountUser,
 } from '@handoff/contracts';
-import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '../generated/prisma/client';
-import { hashPassword, verifyPassword } from './password';
-import { SESSION_DURATION_MS, tokenHash } from './session-cookie';
-
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
-
-  async register(input: Register, oldToken?: string) {
-    const passwordHash = await hashPassword(input.password);
-    const token = randomBytes(32).toString('hex');
+  private readonly origin = process.env.IDENTITY_URL ?? 'http://127.0.0.1:3003';
+  private readonly key = identityServiceKey(process.env);
+  private async request(path: string, body: unknown): Promise<unknown> {
+    let response: Response;
     try {
-      const user = await this.prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: { name: input.name, email: input.email, passwordHash },
-        });
-        if (oldToken)
-          await tx.session.deleteMany({
-            where: { tokenHash: tokenHash(oldToken) },
-          });
-        await tx.session.create({
-          data: {
-            tokenHash: tokenHash(token),
-            userId: user.id,
-            expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
-          },
-        });
-        return user;
+      response = await fetch(new URL(`/internal/auth/${path}`, this.origin), {
+        method: 'POST',
+        signal: AbortSignal.timeout(5000),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Service-Key': this.key,
+        },
+        body: JSON.stringify(body),
       });
-      return { user: AccountUserSchema.parse(user), token };
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'An account with this email already exists',
-        );
-      }
-      throw error;
+    } catch {
+      throw new ServiceUnavailableException(
+        'Account service unavailable. Please try again.',
+      );
     }
-  }
-
-  async login(input: Login, oldToken?: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: input.email },
-    });
-    if (!(await verifyPassword(input.password, user?.passwordHash)) || !user) {
+    if (response.status === 401 && path === 'login')
       throw new UnauthorizedException('Email or password is incorrect');
+    if (response.status === 409)
+      throw new ConflictException('An account with this email already exists');
+    if (response.status === 400)
+      throw new BadRequestException('Invalid account request');
+    if (!response.ok)
+      throw new ServiceUnavailableException(
+        'Account service unavailable. Please try again.',
+      );
+    if (response.status === 204) return null;
+    try {
+      return await response.json();
+    } catch {
+      throw new ServiceUnavailableException(
+        'Account service unavailable. Please try again.',
+      );
     }
-    const token = randomBytes(32).toString('hex');
-    await this.prisma.$transaction(async (tx) => {
-      await tx.session.deleteMany({
-        where: {
-          OR: [
-            { expiresAt: { lte: new Date() } },
-            ...(oldToken ? [{ tokenHash: tokenHash(oldToken) }] : []),
-          ],
-        },
-      });
-      await tx.session.create({
-        data: {
-          tokenHash: tokenHash(token),
-          userId: user.id,
-          expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
-        },
-      });
-    });
-    return { user: AccountUserSchema.parse(user), token };
   }
-
+  async register(input: Register, token?: string) {
+    return IdentityLoginResultSchema.parse(
+      await this.request('register', { input, token }),
+    );
+  }
+  async login(input: Login, token?: string) {
+    return IdentityLoginResultSchema.parse(
+      await this.request('login', { input, token }),
+    );
+  }
   async currentUser(token?: string): Promise<AccountUser | null> {
     if (!token) return null;
-    const session = await this.prisma.session.findUnique({
-      where: { tokenHash: tokenHash(token) },
-      include: { user: { select: { id: true, name: true, email: true } } },
-    });
-    if (!session || session.expiresAt.getTime() <= Date.now()) return null;
-    return AccountUserSchema.parse(session.user);
+    return SessionResponseSchema.parse(await this.request('session', { token }))
+      .user;
   }
-
   async logout(token?: string): Promise<void> {
-    if (token)
-      await this.prisma.session.deleteMany({
-        where: { tokenHash: tokenHash(token) },
-      });
+    if (token) await this.request('logout', { token });
   }
 }

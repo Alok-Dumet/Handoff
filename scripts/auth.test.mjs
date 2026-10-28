@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hashPassword, verifyPassword } from '../apps/bff/src/auth/password.ts';
+import { hashPassword, verifyPassword } from '../apps/identity/src/auth/password.ts';
 import { sessionToken, sessionCookieOptions, tokenHash, SESSION_DURATION_MS } from '../apps/bff/src/auth/session-cookie.ts';
 
 test('passwords use distinct salts and reject wrong or missing credentials', async () => {

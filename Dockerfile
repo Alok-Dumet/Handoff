@@ -11,12 +11,14 @@ FROM toolchain AS dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/bff/package.json apps/bff/package.json
 COPY apps/notifications/package.json apps/notifications/package.json
+COPY apps/identity/package.json apps/identity/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY libs/contracts/package.json libs/contracts/package.json
 RUN --mount=type=cache,id=handoff-pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
 COPY apps/bff apps/bff
 COPY apps/notifications apps/notifications
+COPY apps/identity apps/identity
 COPY apps/web apps/web
 COPY libs/contracts libs/contracts
 RUN pnpm --filter @handoff/contracts build
@@ -69,3 +71,18 @@ COPY --chown=node:node infra/notifications-entrypoint.sh ./entrypoint.sh
 USER node
 EXPOSE 3002
 CMD ["sh", "/app/entrypoint.sh"]
+
+FROM dependencies AS identity-build
+RUN pnpm --filter @handoff/identity build \
+    && pnpm --filter @handoff/identity deploy --legacy --prod /out/identity
+
+FROM toolchain AS identity
+WORKDIR /app
+ENV NODE_ENV=production
+ENV CHECKPOINT_DISABLE=1
+ENV PRISMA_HIDE_UPDATE_MESSAGE=true
+COPY --from=identity-build --chown=node:node /out/identity ./
+COPY --chown=node:node infra/identity-migrate.sh ./migrate.sh
+USER node
+EXPOSE 3003
+CMD ["node", "dist/main.js"]

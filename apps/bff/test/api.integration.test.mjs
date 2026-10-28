@@ -10,6 +10,13 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const require = createRequire(import.meta.url);
 const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const identityCwd = resolve(cwd, '../identity');
+const identityRequire = createRequire(`${identityCwd}/package.json`);
+const { PrismaService: IdentityPrisma } = identityRequire(
+  './dist/prisma/prisma.service.js',
+);
+const { AppModule: IdentityModule } = identityRequire('./dist/app.module.js');
+let identity;
 const { NestFactory } = require('@nestjs/core');
 const { AppModule } = require('../dist/app.module.js');
 const { PrismaService } = require('../dist/prisma/prisma.service.js');
@@ -25,10 +32,10 @@ let aliceCookie;
 let alice;
 let bobCookie;
 
-function run(command, args) {
+function run(command, args, workingDir = cwd) {
   try {
     return execFileSync(command, args, {
-      cwd,
+      cwd: workingDir,
       encoding: 'utf8',
       timeout: 60_000,
       stdio: 'pipe',
@@ -105,6 +112,24 @@ before(
     );
     run(process.execPath, [prismaCli, 'migrate', 'deploy']);
     run(process.execPath, [require.resolve('tsx/cli'), 'prisma/seed.ts']);
+    run('docker', [
+      'exec',
+      containerId,
+      'psql',
+      '-U',
+      'handoff_test',
+      '-d',
+      'handoff_test',
+      '-c',
+      'CREATE DATABASE identity_test',
+    ]);
+    process.env.IDENTITY_DATABASE_URL = `postgresql://handoff_test:handoff_test@127.0.0.1:${port}/identity_test`;
+    process.env.IDENTITY_SERVICE_KEY = 'api-test-identity-key';
+    run(process.execPath, [prismaCli, 'migrate', 'deploy'], identityCwd);
+    run(process.execPath, ['dist/seed.js'], identityCwd);
+    identity = await NestFactory.create(IdentityModule, { logger: false });
+    await identity.listen(0, '127.0.0.1');
+    process.env.IDENTITY_URL = await identity.getUrl();
     await startApi();
   },
   { timeout: 120_000 },
@@ -113,6 +138,7 @@ before(
 after(async () => {
   try {
     await app?.close();
+    await identity?.close();
   } finally {
     if (containerId) run('docker', ['rm', '-f', '-v', containerId]);
   }
@@ -183,13 +209,13 @@ test('registration persists normalized accounts and hashed credentials without l
   assert.equal(alice.name, 'Alice Driver');
   assert.equal(alice.email, 'alice@example.com');
   assert.deepEqual(Object.keys(alice).sort(), ['email', 'id', 'name']);
-  const stored = await app
-    .get(PrismaService)
+  const stored = await identity
+    .get(IdentityPrisma)
     .user.findUnique({ where: { id: alice.id } });
   assert.match(stored.passwordHash, /^scrypt\$/);
   assert.notEqual(stored.passwordHash, 'AlicePassword123!');
-  const sessions = await app
-    .get(PrismaService)
+  const sessions = await identity
+    .get(IdentityPrisma)
     .session.findMany({ where: { userId: alice.id } });
   assert.equal(sessions.length, 1);
   assert.notEqual(sessions[0].tokenHash, aliceCookie.split('=')[1]);
@@ -278,10 +304,14 @@ test('demo account is usable and reseeding does not overwrite existing credentia
     password: 'DemoRental123!',
   });
   const prisma = app.get(PrismaService);
-  const before = await prisma.user.findUnique({ where: { id: demo.user.id } });
-  const { seedDemoAccount } = require('../dist/auth/demo-account.js');
-  await seedDemoAccount(prisma);
-  const after = await prisma.user.findUnique({ where: { id: demo.user.id } });
+  const before = await identity
+    .get(IdentityPrisma)
+    .user.findUnique({ where: { id: demo.user.id } });
+  const { seedDemoAccount } = identityRequire('./dist/auth/demo-account.js');
+  await seedDemoAccount(identity.get(IdentityPrisma));
+  const after = await identity
+    .get(IdentityPrisma)
+    .user.findUnique({ where: { id: demo.user.id } });
   assert.equal(after.passwordHash, before.passwordHash);
   await request('/auth/logout', 204, {}, 'POST', demo.cookie);
 });
@@ -755,7 +785,7 @@ test('accounts, sessions and owned bookings survive API restart', async () => {
 test('history paginates all owned records with stable ties and rejects foreign cursors', async () => {
   const prisma = app.get(PrismaService);
   const before = await prisma.booking.count({ where: { userId: alice.id } });
-  const bob = await prisma.user.findUnique({
+  const bob = await identity.get(IdentityPrisma).user.findUnique({
     where: { email: 'bob@example.com' },
   });
   const fixture = {
@@ -1064,7 +1094,7 @@ test('outbox replays a lost acknowledgement safely and projects remote delivery 
 
 test('startup seed fills missing records without overwriting prices, locations, accounts or bookings', async () => {
   const prisma = app.get(PrismaService);
-  const account = await prisma.user.findUnique({
+  const account = await identity.get(IdentityPrisma).user.findUnique({
     where: { email: 'demo@handoff.local' },
   });
   const count = await prisma.booking.count();
@@ -1086,17 +1116,48 @@ test('startup seed fills missing records without overwriting prices, locations, 
     'Preserved location',
   );
   assert.equal(
-    (await prisma.user.findUnique({ where: { id: account.id } })).passwordHash,
+    (
+      await identity
+        .get(IdentityPrisma)
+        .user.findUnique({ where: { id: account.id } })
+    ).passwordHash,
     account.passwordHash,
   );
   assert.equal(await prisma.booking.count(), count);
   assert.equal(await prisma.vehicle.count(), 10);
 });
 
+test('Identity owns all new accounts and an outage fails closed without invalidating sessions', async () => {
+  const [legacy] = await app.get(PrismaService)
+    .$queryRaw`SELECT count(*)::int AS count FROM users`;
+  assert.equal(legacy.count, 0, 'Rental never creates local user rows');
+  const port = new URL(process.env.IDENTITY_URL).port;
+  await identity.close();
+  await request('/auth/session', 503, undefined, 'GET', aliceCookie);
+  await request('/bookings', 503, undefined, 'GET', aliceCookie);
+  const logout = await rawRequest('/auth/logout', {}, 'POST', aliceCookie);
+  assert.equal(logout.status, 503);
+  assert.equal(logout.headers.get('set-cookie'), null);
+  await request('/vehicles', 200);
+  identity = await NestFactory.create(IdentityModule, { logger: false });
+  await identity.listen(Number(port), '127.0.0.1');
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', aliceCookie),
+    { user: alice },
+  );
+  await request(
+    `/bookings/${savedBooking.id}`,
+    200,
+    undefined,
+    'GET',
+    aliceCookie,
+  );
+});
+
 test('expired and forged sessions cannot authenticate, and logout revokes server-side access', async () => {
   const prisma = app.get(PrismaService);
   const { tokenHash } = require('../dist/auth/session-cookie.js');
-  await prisma.session.update({
+  await identity.get(IdentityPrisma).session.update({
     where: { tokenHash: tokenHash(bobCookie.split('=')[1]) },
     data: { expiresAt: new Date(Date.now() - 1000) },
   });

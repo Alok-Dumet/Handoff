@@ -109,7 +109,8 @@ pnpm test:api
 
 The seed inserts missing demo data and preserves existing vehicles, locations,
 accounts and bookings. It is safe to run on each container startup.
-To add the demo account alone, use `pnpm --filter @handoff/bff db:seed-account`.
+Accounts and sessions now live in Identity. Import existing accounts before running
+`pnpm --filter @handoff/identity db:seed`; see [the safe upgrade procedure](../identity/README.md).
 Credentials: `demo@handoff.local` / `DemoRental123!`. Existing users are never reset.
 The integration tests use a separate disposable Docker database, never the local one.
 
@@ -119,6 +120,9 @@ The integration tests use a separate disposable Docker database, never the local
   defaults to `postgresql://handoff:handoff@localhost:5432/refdata`.
   Required explicitly in production.
 - `PORT`: defaults to `3001`.
+- `IDENTITY_URL`: internal Identity origin, default `http://127.0.0.1:3003`.
+- `IDENTITY_SERVICE_KEY`: shared service key, required in production; a bundled
+  local demo value is supplied by Compose. No browser receives this key.
 - `WEB_ORIGIN`: exact website origin for CSRF checks; defaults to `http://localhost:3000`.
   Set the public HTTPS origin when deploying; it enables Secure session cookies
   and supplies the origin for private booking links in confirmations.
@@ -155,3 +159,16 @@ email account or credentials are required for the demo.
 
 `REFDATA_URL`, `CUSTOMER_SERVICE_URL`, `RESERVATION_SERVICE_URL`,
 `BFF_INTERNAL_AUTH_SECRET`, and `STRIPE_WEBHOOK_SECRET` are no longer used.
+
+## Identity boundary
+
+Public `/auth` routes and cookie semantics are unchanged. The API delegates account
+creation, login, session validation and logout to Identity over authenticated HTTP
+with five-second timeouts. Identity outages yield 503 on authenticated operations;
+failed logout does not clear the browser cookie. Inventory remains readable.
+
+Bookings retain opaque Identity user IDs without a cross-database foreign key.
+Checkout uses a transaction-scoped advisory lock for the user before locking the
+vehicle, preserving retry idempotency and double-booking protection. Runtime Rental
+never queries legacy user/session tables. Those inactive tables are retained only
+for safe import and backup; do not run an older application against them after cutover.

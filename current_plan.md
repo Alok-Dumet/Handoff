@@ -19,7 +19,7 @@ availability and booking writes remain transactional. No service reads another
 service's tables. Mailpit continues to provide credential-free local SMTP capture.
 The gateway, frontend, databases and inbox do not count as domain microservices.
 
-## Slice 1 — Extract Notifications (complete; awaiting commit signing)
+## Slice 1 — Extract Notifications (committed: aef3a71)
 
 - Add `apps/notifications`, a separate NestJS application, image and database.
 - Move SMTP configuration, worker claims, leases and retries out of the rental API.
@@ -70,12 +70,11 @@ Validation/results (2026-10-27):
 - Stop here for review. Identity, the gateway/Rental split, additional features,
   and public deployment have not been started.
 
-Commit status: all changes are staged. The signed commit was blocked by the local
-GPG passphrase prompt; no commit was created and signing settings were preserved.
+Commit status: user committed this slice as `aef3a71` before authorizing slice 2.
 
 Commit message: `refactor: extract notifications into an independent service`
 
-## Slice 2 — Extract Identity (not started)
+## Slice 2 — Extract Identity (complete; awaiting commit signing)
 
 - Move users, password hashes, sessions and auth endpoints into Identity with its
   own database and migration/import procedure that preserves existing credentials.
@@ -84,6 +83,54 @@ Commit message: `refactor: extract notifications into an independent service`
   without reassigning any legacy bookings or losing history.
 - Test session persistence, logout, ownership and Identity outages end to end.
 - Add the third domain service to Compose and document safe upgrades.
+
+Implementation decisions:
+- Add `apps/identity` with its own database, schema, service key and internal auth API.
+- Keep browser routes/cookies unchanged; the current BFF forwards auth and validates
+  sessions through Identity. Invalid/missing sessions are unauthorized; service
+  outages fail closed with 503 and do not clear cookies on a failed logout.
+- The migration job alone receives legacy and Identity database credentials. It
+  imports a consistent snapshot atomically, preserves IDs/hashes/timestamps, and
+  records a marker so reruns cannot resurrect revoked sessions or reset passwords.
+- Stop the old application before the first upgraded Compose launch. Existing
+  `users`/`sessions` stay as inactive archives in Rental; no runtime code uses them.
+  Do not restart an old application version after the cutover.
+- Remove only the local user foreign key from bookings; preserve owner IDs and all
+  booking rows. Use transaction advisory locks instead of a user-row lock to keep
+  cross-vehicle request-key replay safe without querying Identity's database.
+- Compose has eight running services and one successful migration job. Each of
+  Identity, Rental, and Notifications owns a separate database. Gateway separation
+  remains slice 3; no additional user-facing features are included here.
+
+Validation/results (2026-10-27):
+- `pnpm lint`, `pnpm build`, and all 9 unit tests passed across the five packages.
+- `pnpm test:api`: 22 tests passed against real Identity HTTP calls, including
+  unchanged registration/login/cookie behavior, booking ownership, concurrent
+  checkout/retry protection, Identity outage 503 responses and session recovery.
+- `pnpm test:identity`: 5 tests passed using disposable legacy and Identity
+  databases. Verified conflicting-destination rejection, concurrent safe imports,
+  unchanged IDs/password/session hashes and source booking ownership, expired
+  sessions, guarded internal endpoints, session rotation, restart persistence,
+  and no resurrection of logged-out sessions when the import is rerun.
+- `pnpm test:history`: passed the existing UI flow through Identity, Rental and
+  Notifications, including email delivery, owner isolation and API outage recovery.
+- `pnpm test:compose`: passed fresh automatic migration/seeding and the complete
+  rental journey. Identity outages fail closed without clearing the session;
+  recovery restores the same user. Plain stop/start and down/up preserve all
+  three databases, account edits, sessions, bookings and captured confirmations.
+- Fixed a case-sensitive legacy foreign-key name in the additive migration and
+  avoided duplicate builds of the shared Identity/runtime migration image.
+- An isolated run encountered a Windows/WSL reserved random port; a fresh-port
+  rerun passed. All disposable test containers were cleaned up afterward.
+- No changes were applied to the user's development database. Existing installs
+  must stop the old stack before running the documented upgrade command.
+- Stop for review here; gateway extraction and extra features are not started.
+
+Commit status: changes are staged. The signed commit could not complete because
+GPG requires an interactive unlock. No unsigned commit was created and repository
+signing settings were not changed.
+
+Commit message: `refactor: extract identity with preserved accounts and sessions`
 
 ## Slice 3 — Separate gateway from Rental (not started)
 

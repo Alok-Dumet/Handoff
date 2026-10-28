@@ -88,8 +88,8 @@ export class BookingsService {
     return this.prisma.$transaction(
       async (tx) => {
         // Serialize retries even if a key is reused for a different vehicle.
-        // Every booking writer takes the user lock before the vehicle lock.
-        await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+        // Identity IDs are opaque; no user table exists in the rental schema.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${user.id}, 0))`;
         const previous = await tx.booking.findUnique({
           where: {
             userId_requestKey: {

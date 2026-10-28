@@ -15,7 +15,12 @@ const webRequire = createRequire(`${root}/apps/web/package.json`);
 const { NestFactory } = require("@nestjs/core");
 const { AppModule } = require("./dist/app.module.js");
 const origin = "http://127.0.0.1:3400";
-let containerId, mailContainerId, app, notifications, browser, next;
+let containerId, mailContainerId, app, identity, notifications, browser, next;
+const identityCwd = `${root}/apps/identity`;
+const identityRequire = createRequire(`${identityCwd}/package.json`);
+const { PrismaService: IdentityPrisma } = identityRequire(
+  "./dist/prisma/prisma.service.js",
+);
 const notificationsCwd = `${root}/apps/notifications`;
 const notificationsRequire = createRequire(`${notificationsCwd}/package.json`);
 let delayHistory = false;
@@ -137,6 +142,38 @@ try {
   );
   await notifications.listen(0, "127.0.0.1");
   process.env.NOTIFICATIONS_URL = await notifications.getUrl();
+  run("docker", [
+    "exec",
+    containerId,
+    "psql",
+    "-U",
+    "handoff_test",
+    "-d",
+    "handoff_test",
+    "-c",
+    "CREATE DATABASE identity_test",
+  ]);
+  process.env.IDENTITY_DATABASE_URL = `postgresql://handoff_test:handoff_test@127.0.0.1:${port}/identity_test`;
+  process.env.IDENTITY_SERVICE_KEY = "history-test-identity-key";
+  run(
+    process.execPath,
+    [
+      resolve(
+        dirname(identityRequire.resolve("prisma/package.json")),
+        "build/index.js",
+      ),
+      "migrate",
+      "deploy",
+    ],
+    identityCwd,
+  );
+  run(process.execPath, ["dist/seed.js"], identityCwd);
+  identity = await NestFactory.create(
+    identityRequire("./dist/app.module.js").AppModule,
+    { logger: false },
+  );
+  await identity.listen(0, "127.0.0.1");
+  process.env.IDENTITY_URL = await identity.getUrl();
   app = await NestFactory.create(AppModule, { logger: false });
   app.use((req, res, next) => {
     if (delayHistory && req.path === "/bookings") setTimeout(next, 1200);
@@ -276,10 +313,10 @@ try {
   console.log("PASS checkout to summary card to persisted detailed receipt");
   const { PrismaService } = require("./dist/prisma/prisma.service.js");
   const prisma = app.get(PrismaService);
-  const user = await prisma.user.findUnique({
+  const user = await identity.get(IdentityPrisma).user.findUnique({
     where: { email: "history@example.com" },
   });
-  const demo = await prisma.user.findUnique({
+  const demo = await identity.get(IdentityPrisma).user.findUnique({
     where: { email: "demo@handoff.local" },
   });
   const stored = await prisma.booking.findUnique({ where: { id: saved.id } });
@@ -417,6 +454,7 @@ try {
   }
   await app?.close();
   await notifications?.close();
+  await identity?.close();
   if (containerId) run("docker", ["rm", "-f", "-v", containerId]);
   if (mailContainerId) run("docker", ["rm", "-f", "-v", mailContainerId]);
 }

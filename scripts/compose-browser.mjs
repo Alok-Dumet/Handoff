@@ -21,8 +21,14 @@ async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return String(port);
 }
-const [webPort, dbPort, smtpPort, inboxPort, notificationDbPort] =
-  await Promise.all(Array.from({ length: 5 }, freePort));
+const [
+  webPort,
+  dbPort,
+  smtpPort,
+  inboxPort,
+  notificationDbPort,
+  identityDbPort,
+] = await Promise.all(Array.from({ length: 6 }, freePort));
 const origin = `http://127.0.0.1:${webPort}`;
 const inbox = `http://127.0.0.1:${inboxPort}`;
 const env = {
@@ -30,6 +36,7 @@ const env = {
   WEB_PORT: webPort,
   DB_PORT: dbPort,
   NOTIFICATIONS_DB_PORT: notificationDbPort,
+  IDENTITY_DB_PORT: identityDbPort,
   SMTP_PORT: smtpPort,
   INBOX_PORT: inboxPort,
   WEB_ORIGIN: origin,
@@ -65,6 +72,20 @@ async function sql(query) {
     query,
   ]);
 }
+async function identitySql(query) {
+  return compose([
+    "exec",
+    "-T",
+    "identity-db",
+    "psql",
+    "-U",
+    "identity",
+    "-d",
+    "identity",
+    "-tAc",
+    query,
+  ]);
+}
 async function waitFor(check, message, attempts = 60) {
   for (let i = 0; i < attempts; i++) {
     if (await check()) return;
@@ -77,7 +98,7 @@ try {
   console.log(`Starting isolated Compose project ${project}`);
   await compose(["up", "--build", "-d", "--wait", "--wait-timeout", "180"]);
   assert.equal(await sql("SELECT count(*) FROM vehicles"), "10");
-  assert.equal(await sql("SELECT count(*) FROM users"), "1");
+  assert.equal(await identitySql("SELECT count(*) FROM users"), "1");
   assert.equal(await compose(["exec", "-T", "api", "id", "-u"]), "1000");
   assert.equal(await compose(["exec", "-T", "web", "id", "-u"]), "1000");
   assert.equal((await fetch(`${origin}/api/health`)).status, 200);
@@ -248,6 +269,43 @@ try {
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   );
+  const userBeforeOutage = (
+    await (await context.request.get(`${origin}/api/auth/session`)).json()
+  ).user;
+  await compose(["stop", "identity"]);
+  assert.equal(
+    (await context.request.get(`${origin}/api/auth/session`)).status(),
+    503,
+  );
+  assert.equal(
+    (await context.request.get(`${origin}/api/bookings`)).status(),
+    503,
+  );
+  const rejectedLogout = await context.request.post(
+    `${origin}/api/auth/logout`,
+    { headers, data: {} },
+  );
+  assert.equal(rejectedLogout.status(), 503);
+  assert.equal(rejectedLogout.headers()["set-cookie"], undefined);
+  assert.equal(
+    (await context.request.get(`${origin}/api/vehicles`)).status(),
+    200,
+  );
+  await compose(["start", "identity"]);
+  await waitFor(
+    async () =>
+      (await context.request.get(`${origin}/api/auth/session`)).status() ===
+      200,
+    "Identity recovers",
+  );
+  assert.deepEqual(
+    (await (await context.request.get(`${origin}/api/auth/session`)).json())
+      .user,
+    userBeforeOutage,
+  );
+  console.log(
+    "PASS Identity outage fails closed; recovery preserves the existing session and booking owner",
+  );
   console.log(
     "PASS retry idempotency, exact 24-hour availability boundary and mobile receipt",
   );
@@ -329,10 +387,16 @@ try {
     "PASS Notifications outage does not block checkout; accepted delivery persists in its own database",
   );
   await sql(
-    "UPDATE vehicles SET \"pricePerDay\"=123 WHERE id='veh_010'; UPDATE locations SET name='Preserved branch' WHERE id='loc_lax'; UPDATE users SET name='Preserved demo' WHERE email='demo@handoff.local';",
+    "UPDATE vehicles SET \"pricePerDay\"=123 WHERE id='veh_010'; UPDATE locations SET name='Preserved branch' WHERE id='loc_lax';",
   );
+  await identitySql(
+    "UPDATE users SET name='Preserved demo' WHERE email='demo@handoff.local'",
+  );
+  const identitySnapshotQuery =
+    "SELECT (SELECT count(*) FROM users), (SELECT count(*) FROM sessions), (SELECT name FROM users WHERE email='demo@handoff.local')";
+  const identitySnapshot = await identitySql(identitySnapshotQuery);
   const snapshotQuery =
-    "SELECT (SELECT count(*) FROM bookings), (SELECT count(*) FROM users), (SELECT count(*) FROM vehicles), (SELECT \"pricePerDay\" FROM vehicles WHERE id='veh_010'), (SELECT name FROM locations WHERE id='loc_lax'), (SELECT name FROM users WHERE email='demo@handoff.local')";
+    "SELECT (SELECT count(*) FROM bookings), (SELECT count(*) FROM vehicles), (SELECT \"pricePerDay\" FROM vehicles WHERE id='veh_010'), (SELECT name FROM locations WHERE id='loc_lax')";
   const snapshot = await sql(snapshotQuery);
   await compose(["stop"]);
   await compose(["start"]);
@@ -343,10 +407,11 @@ try {
         .filter(Boolean)
         .flatMap((line) => JSON.parse(line));
       return (
-        services.length === 6 &&
-        services.every(
-          (service) =>
-            service.State === "running" && service.Health === "healthy",
+        services.length === 9 &&
+        services.every((service) =>
+          service.Service === "identity-migrate"
+            ? service.State === "exited" && service.ExitCode === 0
+            : service.State === "running" && service.Health === "healthy",
         )
       );
     },
@@ -354,6 +419,7 @@ try {
     360,
   );
   assert.equal(await sql(snapshotQuery), snapshot);
+  assert.equal(await identitySql(identitySnapshotQuery), identitySnapshot);
   await page.reload();
   await page.getByText(booking.totalLabel, { exact: true }).waitFor();
   await waitFor(
@@ -379,6 +445,7 @@ try {
   await compose(["down"]); // Deliberately retain only this test project's volumes.
   await compose(["up", "-d", "--no-build", "--wait", "--wait-timeout", "180"]);
   assert.equal(await sql(snapshotQuery), snapshot);
+  assert.equal(await identitySql(identitySnapshotQuery), identitySnapshot);
   await page.goto(`${origin}/bookings`);
   await page.locator(`a[href="/bookings/${booking.id}"]`).waitFor();
   await page.locator(`a[href="/bookings/${secondBooking.id}"]`).waitFor();
@@ -410,7 +477,16 @@ try {
 } catch (error) {
   try {
     console.error(
-      await compose(["logs", "--tail", "20", "api", "web", "notifications"]),
+      await compose([
+        "logs",
+        "--tail",
+        "20",
+        "api",
+        "web",
+        "notifications",
+        "identity",
+        "identity-migrate",
+      ]),
     );
   } catch {}
   throw error;
