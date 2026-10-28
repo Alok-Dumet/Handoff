@@ -8,8 +8,12 @@ import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const require = createRequire(import.meta.url);
-const cwd = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const gatewayCwd = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const cwd = resolve(gatewayCwd, '../rental');
+const require = createRequire(`${cwd}/test/api.integration.test.mjs`);
+const gatewayRequire = createRequire(`${gatewayCwd}/package.json`);
+const { AppModule: GatewayModule } = gatewayRequire('./dist/app.module.js');
+let gateway;
 const identityCwd = resolve(cwd, '../identity');
 const identityRequire = createRequire(`${identityCwd}/package.json`);
 const { PrismaService: IdentityPrisma } = identityRequire(
@@ -49,9 +53,20 @@ function run(command, args, workingDir = cwd) {
 }
 
 async function startApi() {
-  app = await NestFactory.create(AppModule, { logger: false });
+  await gateway?.close();
+  process.env.RENTAL_SERVICE_KEY = 'integration-rental-key';
+  app = await NestFactory.create(AppModule, {
+    logger: false,
+    abortOnError: false,
+  });
   await app.listen(0, '127.0.0.1');
-  base = await app.getUrl();
+  process.env.RENTAL_URL = await app.getUrl();
+  gateway = await NestFactory.create(GatewayModule, {
+    logger: false,
+    abortOnError: false,
+  });
+  await gateway.listen(0, '127.0.0.1');
+  base = await gateway.getUrl();
 }
 
 before(
@@ -127,7 +142,10 @@ before(
     process.env.IDENTITY_SERVICE_KEY = 'api-test-identity-key';
     run(process.execPath, [prismaCli, 'migrate', 'deploy'], identityCwd);
     run(process.execPath, ['dist/seed.js'], identityCwd);
-    identity = await NestFactory.create(IdentityModule, { logger: false });
+    identity = await NestFactory.create(IdentityModule, {
+      logger: false,
+      abortOnError: false,
+    });
     await identity.listen(0, '127.0.0.1');
     process.env.IDENTITY_URL = await identity.getUrl();
     await startApi();
@@ -137,6 +155,7 @@ before(
 
 after(async () => {
   try {
+    await gateway?.close();
     await app?.close();
     await identity?.close();
   } finally {
@@ -1057,7 +1076,10 @@ test('outbox replays a lost acknowledgement safely and projects remote delivery 
     await prisma.confirmationEmail.updateMany({
       data: { nextAttemptAt: new Date(0) },
     });
-    const second = await NestFactory.create(AppModule, { logger: false });
+    const second = await NestFactory.create(AppModule, {
+      logger: false,
+      abortOnError: false,
+    });
     await second.init();
     try {
       await Promise.all([
@@ -1139,12 +1161,92 @@ test('Identity owns all new accounts and an outage fails closed without invalida
   assert.equal(logout.status, 503);
   assert.equal(logout.headers.get('set-cookie'), null);
   await request('/vehicles', 200);
-  identity = await NestFactory.create(IdentityModule, { logger: false });
+  identity = await NestFactory.create(IdentityModule, {
+    logger: false,
+    abortOnError: false,
+  });
   await identity.listen(Number(port), '127.0.0.1');
   assert.deepEqual(
     await request('/auth/session', 200, undefined, 'GET', aliceCookie),
     { user: alice },
   );
+  await request(
+    `/bookings/${savedBooking.id}`,
+    200,
+    undefined,
+    'GET',
+    aliceCookie,
+  );
+});
+
+test('gateway exposes only public routes and Rental rejects direct or forged caller identity', async () => {
+  assert.equal((await fetch(`${base}/vehicles`, { method: 'HEAD' })).status, 200);
+  const rental = await app.getUrl();
+  assert.equal((await fetch(`${rental}/vehicles`)).status, 401);
+  assert.equal(
+    (await fetch(`${rental}/bookings`, { headers: { Cookie: aliceCookie } }))
+      .status,
+    401,
+  );
+  assert.equal(
+    (
+      await fetch(`${rental}/bookings`, {
+        headers: {
+          'X-Service-Key': 'integration-rental-key',
+          'X-User-Id': alice.id,
+        },
+      })
+    ).status,
+    401,
+  );
+  for (const path of [
+    '/internal/auth/session',
+    '/internal/confirmations',
+    '/admin',
+    '/auth/private',
+  ])
+    await request(path, 404);
+  const forged = await rawRequest(
+    `/bookings/${savedBooking.id}`,
+    undefined,
+    'GET',
+    bobCookie,
+    { 'X-Service-Key': 'integration-rental-key', 'X-User-Id': alice.id },
+  );
+  assert.equal(forged.status, 404);
+  const overwritten = await rawRequest('/vehicles', undefined, 'GET', '', {
+    'X-Service-Key': 'attacker-key',
+  });
+  assert.equal(
+    overwritten.status,
+    200,
+    'gateway supplies its own credential, never the caller header',
+  );
+  assert.equal(
+    (
+      await rawRequest('/bookings', {}, 'POST', aliceCookie, {
+        Origin: 'https://attacker.invalid',
+      })
+    ).status,
+    403,
+  );
+});
+
+test('Rental outage returns 503 through the gateway while account access remains available', async () => {
+  const rentalPort = Number(new URL(process.env.RENTAL_URL).port);
+  await app.close();
+  await request('/vehicles', 503);
+  await request('/bookings', 503, undefined, 'GET', aliceCookie);
+  assert.deepEqual(
+    await request('/auth/session', 200, undefined, 'GET', aliceCookie),
+    { user: alice },
+  );
+  await request('/health', 200);
+  app = await NestFactory.create(AppModule, {
+    logger: false,
+    abortOnError: false,
+  });
+  await app.listen(rentalPort, '127.0.0.1');
   await request(
     `/bookings/${savedBooking.id}`,
     200,

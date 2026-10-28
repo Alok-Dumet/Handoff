@@ -5,16 +5,16 @@ microservices design or a future deployment.
 
 ## Architecture
 
-Handoff is migrating to three domain microservices: Identity, Rental, and
-Notifications, behind a thin API gateway. Identity and Notifications are extracted:
-there are now **three domain backend applications**. The thin gateway is still
-combined with Rental until the next slice.
-See [current_plan.md](current_plan.md) for the remaining reviewed slices.
+Handoff has **three domain microservices**—Identity, Rental and Notifications—behind
+a separate, thin API gateway. Each domain service owns its database. The gateway
+has no database client or database credentials. See [current_plan.md](current_plan.md)
+for the completed migration slices and planned feature work.
 
 | Component | Implementation | Responsibility |
 | --- | --- | --- |
 | Web | `apps/web`: Next.js, React, TypeScript, Tailwind CSS | Account UI, search, checkout, history and receipts |
-| Rental API | `apps/bff`: NestJS and Prisma | Inventory, pricing, bookings and transactional notification outbox; temporarily also hosts the public gateway |
+| Gateway | `apps/bff`: NestJS | Public routes, browser cookies/origin checks, Identity auth and forwarding to Rental |
+| Rental | `apps/rental`: NestJS and Prisma | Inventory, pricing, availability, bookings, receipts and notification outbox |
 | Identity | `apps/identity`: NestJS and Prisma | Accounts, passwords, sessions and internal session validation |
 | Identity database | Separate PostgreSQL 17 instance/database | Users, hashed credentials/sessions and import marker |
 | Notifications | `apps/notifications`: NestJS, Prisma and Nodemailer | Idempotent confirmation acceptance, SMTP delivery and retries |
@@ -23,9 +23,9 @@ See [current_plan.md](current_plan.md) for the remaining reviewed slices.
 | Inbox | Mailpit | Captures actual SMTP messages locally |
 | Contracts | `libs/contracts`: Zod and TypeScript | Shared public and internal request/response validation |
 
-Compose runs eight long-lived services and one one-time migration job. Containers for databases, frontend and inbox are not
+Compose runs nine long-lived services and one one-time migration job. Containers for databases, frontend and inbox are not
 backend microservices. The workspace uses pnpm and Turborepo. Each backend owns its
-schema and migrations; neither queries the other's database. The old mock domain
+schema and migrations; no runtime service queries another service's database. The old mock domain
 services, Clerk and Stripe remain removed. Existing `refdata` names are retained
 to preserve data; these do not indicate a separate refdata microservice.
 
@@ -71,7 +71,7 @@ is not published on a host port in the full Compose stack.
 
 | Method | API path | Purpose |
 | --- | --- | --- |
-| GET | `/health` | API health, including database connectivity |
+| GET | `/health` | Gateway readiness; domain services have their own database health checks |
 | GET | `/vehicles` | Filtered inventory and availability |
 | GET | `/vehicles/:id` | Vehicle details |
 | GET | `/locations` | Rental branches |
@@ -154,7 +154,7 @@ See [the safe upgrade procedure](apps/identity/README.md).
 Startup applies migrations and inserts missing demo records: four branches, ten
 vehicles and the demo account. Existing inventory edits, passwords and bookings
 are preserved. Application containers run as non-root; web assets are packaged
-in a Next.js standalone build. Health checks cover the API/database and web proxy.
+in a Next.js standalone build. Health checks cover each domain service/database, the gateway and the web proxy.
 
 The project name remains `infra`, reusing `infra_refdata-db-data` and
 `infra_mailpit-data`, plus `infra_notifications-db-data` and `infra_identity-db-data`. Stop/start and ordinary `down` preserve these volumes;
@@ -168,19 +168,20 @@ before running a development server on the same port:
 
 ```bash
 pnpm install
-docker compose stop api web notifications identity # only if the full stack was previously created
+docker compose stop api rental web notifications identity # only if the full stack was previously created
 docker compose -f infra/docker-compose.yml up -d
 pnpm --filter @handoff/identity db:migrate
 pnpm --filter @handoff/identity db:import
 pnpm --filter @handoff/identity db:seed
-pnpm --filter @handoff/bff db:migrate
+pnpm --filter @handoff/rental db:migrate
 pnpm --filter @handoff/notifications db:migrate
-pnpm --filter @handoff/bff... build
-pnpm --filter @handoff/bff db:seed
+pnpm --filter @handoff/rental... build
+pnpm --filter @handoff/rental db:seed
 pnpm dev
 ```
 
-Development API: http://localhost:3001. Stop `pnpm dev` with Ctrl+C.
+Development gateway: http://localhost:3001; internal Rental: http://localhost:3004
+(service key required). Stop `pnpm dev` with Ctrl+C.
 
 Available checks:
 
@@ -208,7 +209,7 @@ Read-only smoke checks against a running Docker stack:
 BFF_URL=http://localhost:3000/api pnpm test:smoke
 ```
 
-The migration adds separate Notifications integration checks for authenticated
+The test suites include separate Identity migration and Notifications integration checks for authenticated
 contracts, duplicate events, independent storage, real SMTP, worker claims and
 restart recovery. Rental tests cover outbox atomicity, unavailable Notifications,
 lost acknowledgements and preservation of previously sent rows. Final validation
@@ -216,7 +217,8 @@ results are tracked in [current_plan.md](current_plan.md).
 
 ## Remaining scope
 
-Gateway/Rental separation is the next architecture slice. The additional rental/account API features follow that migration. Public
+The three-service architecture and gateway extraction are complete. Additional
+rental/account API features are the next reviewed slices. Public
 deployment remains future work requiring a host, HTTPS, credentials, backups,
 basic abuse protection and hosted validation. Password recovery and email
 verification are not implemented. There is no payment collection, physical return

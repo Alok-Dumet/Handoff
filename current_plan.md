@@ -74,7 +74,7 @@ Commit status: user committed this slice as `aef3a71` before authorizing slice 2
 
 Commit message: `refactor: extract notifications into an independent service`
 
-## Slice 2 — Extract Identity (complete; awaiting commit signing)
+## Slice 2 — Extract Identity (committed: 2242b1c)
 
 - Move users, password hashes, sessions and auth endpoints into Identity with its
   own database and migration/import procedure that preserves existing credentials.
@@ -126,13 +126,11 @@ Validation/results (2026-10-27):
   must stop the old stack before running the documented upgrade command.
 - Stop for review here; gateway extraction and extra features are not started.
 
-Commit status: changes are staged. The signed commit could not complete because
-GPG requires an interactive unlock. No unsigned commit was created and repository
-signing settings were not changed.
+Commit status: user committed Identity as `2242b1c` before authorizing slice 3.
 
 Commit message: `refactor: extract identity with preserved accounts and sessions`
 
-## Slice 3 — Separate gateway from Rental (not started)
+## Slice 3 — Separate gateway from Rental (complete; awaiting commit signing)
 
 - Retain `apps/bff` as a thin web-facing gateway and move rental business logic into
   `apps/rental`, with explicit service contracts and internal access control.
@@ -141,6 +139,53 @@ Commit message: `refactor: extract identity with preserved accounts and sessions
 - Verify all three domain services can start/restart independently; update the
   architecture inventory and validate the complete Docker rental journey.
 - Remove temporary extraction adapters and document final data ownership.
+
+Implementation decisions:
+- `apps/rental` owns inventory, quotes, availability, bookings, receipts, the outbox,
+  Prisma and migrations. The eleven migration/history files are byte-for-byte
+  unchanged, and the existing PostgreSQL database and volumes remain attached.
+- `apps/bff` has no Prisma dependency, migrations, database URL or notification
+  worker. It exposes explicit public routes and forwards Rental requests with its
+  own service key and only the recognized opaque session cookie.
+- Rental requires its internal service key and validates booking sessions through
+  Identity. Browser-supplied service keys and user-ID headers are never trusted.
+- Public auth routes and browser-origin checks remain at the gateway. No browser
+  URLs or response envelopes changed; internal endpoints are not forwarded.
+- Gateway readiness is independent of Rental, so accounts remain accessible during
+  Rental outages. Rental continues processing its outbox while the gateway is down.
+- Compose runs nine long-lived services plus the existing Identity migration job.
+  First launch and subsequent stop/start commands remain unchanged.
+- No feature additions or public deployment are included in this slice.
+
+Validation/results (2026-10-27):
+- `pnpm lint` and `pnpm build`: passed across all six packages; 9 unit tests passed.
+- `pnpm test:api`: all 24 tests passed through the real gateway/Rental/Identity
+  HTTP boundary. Coverage includes unchanged auth/checkout/history contracts,
+  concurrency and request-key replays, owner isolation, CSRF, direct Rental access
+  rejection, spoofed identity/service headers, internal route exclusion, HEAD
+  compatibility, and account access/recovery while Rental is offline.
+- `pnpm test:history`: passed the browser flow through the gateway, including
+  captured email, saved receipts, pagination, owner protection, keyboard/mobile
+  behavior, rental lifecycle changes and recovery after Rental downtime.
+- `pnpm test:compose`: passed first launch and the full rental journey. Verified
+  the gateway image contains no Prisma client or database/Notifications credentials,
+  independent gateway/Rental restarts, Identity and Notifications outage recovery,
+  and all three databases/inbox surviving stop/start and container recreation.
+- Verified all 11 existing migration/history files are byte-for-byte identical
+  at their new location. No schema change, data copy, database reset, or writes
+  against the user's development data were required for this slice.
+- Improved isolated Docker tests to let Docker allocate infrastructure ports and
+  retry only startup failures caused by Windows/WSL reserved browser/inbox ports.
+  No application failure or test assertion is retried. Disposable resources were
+  cleaned up, including the database left by an initial Nest dependency-wiring error.
+- The three-domain-service architecture is complete. Stop here for review before
+  starting cancellation, receipts or other feature work.
+
+Commit status: changes are staged. GPG requires an interactive unlock, so the signed
+commit could not be created in this session. No unsigned commit was made and Git's
+signing configuration was preserved.
+
+Commit message: `refactor: separate rental service from the API gateway`
 
 ## Later feature slices (after migration and review)
 

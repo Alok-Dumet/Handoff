@@ -21,23 +21,16 @@ async function freePort() {
   await new Promise((resolve) => server.close(resolve));
   return String(port);
 }
-const [
-  webPort,
-  dbPort,
-  smtpPort,
-  inboxPort,
-  notificationDbPort,
-  identityDbPort,
-] = await Promise.all(Array.from({ length: 6 }, freePort));
-const origin = `http://127.0.0.1:${webPort}`;
-const inbox = `http://127.0.0.1:${inboxPort}`;
+let [webPort, inboxPort] = await Promise.all(Array.from({ length: 2 }, freePort));
+let origin = `http://127.0.0.1:${webPort}`;
+let inbox = `http://127.0.0.1:${inboxPort}`;
 const env = {
   ...process.env,
   WEB_PORT: webPort,
-  DB_PORT: dbPort,
-  NOTIFICATIONS_DB_PORT: notificationDbPort,
-  IDENTITY_DB_PORT: identityDbPort,
-  SMTP_PORT: smtpPort,
+  DB_PORT: "0",
+  NOTIFICATIONS_DB_PORT: "0",
+  IDENTITY_DB_PORT: "0",
+  SMTP_PORT: "0",
   INBOX_PORT: inboxPort,
   WEB_ORIGIN: origin,
   DEMO_INBOX_URL: inbox,
@@ -96,7 +89,22 @@ async function waitFor(check, message, attempts = 60) {
 let browser;
 try {
   console.log(`Starting isolated Compose project ${project}`);
-  await compose(["up", "--build", "-d", "--wait", "--wait-timeout", "180"]);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await compose(["up", "--build", "-d", "--wait", "--wait-timeout", "180"]);
+      break;
+    } catch (error) {
+      // WSL cannot see Windows host reservations. Retry only this startup failure,
+      // before any test data exists; never retry application or assertion errors.
+      if (attempt >= 2 || !error.message.includes("ports are not available")) throw error;
+      await compose(["down", "--volumes", "--remove-orphans"]);
+      [webPort, inboxPort] = await Promise.all(Array.from({ length: 2 }, freePort));
+      origin = `http://127.0.0.1:${webPort}`;
+      inbox = `http://127.0.0.1:${inboxPort}`;
+      Object.assign(env, { WEB_PORT: webPort, INBOX_PORT: inboxPort, WEB_ORIGIN: origin, DEMO_INBOX_URL: inbox });
+      console.log("Retrying isolated startup with different Windows/WSL host ports");
+    }
+  }
   assert.equal(await sql("SELECT count(*) FROM vehicles"), "10");
   assert.equal(await identitySql("SELECT count(*) FROM users"), "1");
   assert.equal(await compose(["exec", "-T", "api", "id", "-u"]), "1000");
@@ -105,6 +113,15 @@ try {
   console.log(
     "PASS first launch migrates and seeds an empty database; API/web are healthy and non-root",
   );
+  assert.equal(await compose(["exec", "-T", "rental", "id", "-u"]), "1000");
+  await compose([
+    "exec",
+    "-T",
+    "api",
+    "node",
+    "-e",
+    "if (process.env.DATABASE_URL || process.env.NOTIFICATIONS_SERVICE_KEY) process.exit(1); try { require.resolve('@prisma/client'); process.exit(1); } catch {}",
+  ]);
   browser = await chromium.launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined,
   });
@@ -310,6 +327,55 @@ try {
     "PASS retry idempotency, exact 24-hour availability boundary and mobile receipt",
   );
 
+  await compose(["stop", "rental"]);
+  assert.equal(
+    (await context.request.get(`${origin}/api/vehicles`)).status(),
+    503,
+  );
+  assert.equal(
+    (await context.request.get(`${origin}/api/bookings`)).status(),
+    503,
+  );
+  assert.deepEqual(
+    (await (await context.request.get(`${origin}/api/auth/session`)).json())
+      .user,
+    userBeforeOutage,
+  );
+  await compose(["start", "rental"]);
+  await waitFor(
+    async () =>
+      (await context.request.get(`${origin}/api/vehicles`)).status() === 200,
+    "Rental recovers",
+    120,
+  );
+  await compose(["stop", "api"]);
+  assert.equal(
+    await compose([
+      "exec",
+      "-T",
+      "rental",
+      "node",
+      "-e",
+      "fetch('http://127.0.0.1:3004/health').then(r=>console.log(r.status))",
+    ]),
+    "200",
+  );
+  await compose(["start", "api"]);
+  await waitFor(
+    async () =>
+      (await context.request.get(`${origin}/api/health`)).status() === 200,
+    "Gateway recovers",
+  );
+  assert.equal(
+    (
+      await context.request.get(`${origin}/api/bookings/${booking.id}`)
+    ).status(),
+    200,
+  );
+  console.log(
+    "PASS gateway has no database client/credentials; Rental and gateway restart independently without losing the session",
+  );
+
   await compose(["stop", "mailpit"]);
   await compose(["stop", "notifications"]);
   const vehicle = await (await fetch(`${origin}/api/vehicles/veh_002`)).json();
@@ -407,7 +473,7 @@ try {
         .filter(Boolean)
         .flatMap((line) => JSON.parse(line));
       return (
-        services.length === 9 &&
+        services.length === 10 &&
         services.every((service) =>
           service.Service === "identity-migrate"
             ? service.State === "exited" && service.ExitCode === 0
@@ -482,6 +548,7 @@ try {
         "--tail",
         "20",
         "api",
+        "rental",
         "web",
         "notifications",
         "identity",

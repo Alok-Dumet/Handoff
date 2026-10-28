@@ -8,7 +8,7 @@ available again 24 hours after their scheduled return. No payment is collected.
 
 - **Frontend:** Next.js, React, TypeScript, and Tailwind CSS.
 - **Backend:** NestJS Rental, Identity, and Notifications services, each with its
-  own PostgreSQL database through Prisma. A separate gateway is the next slice.
+  own PostgreSQL database through Prisma, behind a thin NestJS API gateway.
 - **Shared validation:** Zod, in a pnpm/Turborepo monorepo.
 - **Email:** Nodemailer over SMTP, with a bundled Mailpit inbox.
 - **Runtime:** Docker Compose runs the entire stack.

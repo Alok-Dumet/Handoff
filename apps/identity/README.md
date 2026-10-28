@@ -3,7 +3,7 @@
 Identity owns accounts, scrypt password hashes, and hashed, revocable sessions in
 its own PostgreSQL database. The rental API validates sessions over authenticated
 HTTP; it does not read Identity tables. Cookie handling and browser-origin checks
-remain in the web-facing API until the gateway slice.
+live in the separate web-facing gateway.
 
 ## Internal API
 

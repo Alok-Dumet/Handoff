@@ -9,13 +9,22 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const cwd = `${root}/apps/bff`;
+const cwd = `${root}/apps/rental`;
+const gatewayRequire = createRequire(`${root}/apps/bff/package.json`);
+const { AppModule: GatewayModule } = gatewayRequire("./dist/app.module.js");
 const require = createRequire(`${cwd}/package.json`);
 const webRequire = createRequire(`${root}/apps/web/package.json`);
 const { NestFactory } = require("@nestjs/core");
 const { AppModule } = require("./dist/app.module.js");
 const origin = "http://127.0.0.1:3400";
-let containerId, mailContainerId, app, identity, notifications, browser, next;
+let containerId,
+  mailContainerId,
+  app,
+  gateway,
+  identity,
+  notifications,
+  browser,
+  next;
 const identityCwd = `${root}/apps/identity`;
 const identityRequire = createRequire(`${identityCwd}/package.json`);
 const { PrismaService: IdentityPrisma } = identityRequire(
@@ -138,7 +147,7 @@ try {
   );
   notifications = await NestFactory.create(
     notificationsRequire("./dist/app.module.js").AppModule,
-    { logger: false },
+    { logger: false, abortOnError: false },
   );
   await notifications.listen(0, "127.0.0.1");
   process.env.NOTIFICATIONS_URL = await notifications.getUrl();
@@ -170,17 +179,28 @@ try {
   run(process.execPath, ["dist/seed.js"], identityCwd);
   identity = await NestFactory.create(
     identityRequire("./dist/app.module.js").AppModule,
-    { logger: false },
+    { logger: false, abortOnError: false },
   );
   await identity.listen(0, "127.0.0.1");
   process.env.IDENTITY_URL = await identity.getUrl();
-  app = await NestFactory.create(AppModule, { logger: false });
+  process.env.RENTAL_SERVICE_KEY = "history-rental-key";
+  app = await NestFactory.create(AppModule, {
+    logger: false,
+    abortOnError: false,
+  });
   app.use((req, res, next) => {
     if (delayHistory && req.path === "/bookings") setTimeout(next, 1200);
     else next();
   });
   await app.listen(0, "127.0.0.1");
-  const apiUrl = await app.getUrl();
+  const rentalUrl = await app.getUrl();
+  process.env.RENTAL_URL = rentalUrl;
+  gateway = await NestFactory.create(GatewayModule, {
+    logger: false,
+    abortOnError: false,
+  });
+  await gateway.listen(0, "127.0.0.1");
+  const apiUrl = await gateway.getUrl();
   next = spawn(
     process.execPath,
     [
@@ -430,14 +450,17 @@ try {
   );
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
-  const apiPort = Number(new URL(apiUrl).port);
+  const apiPort = Number(new URL(rentalUrl).port);
   await app.close();
   app = undefined;
   await page.goto(origin + "/bookings");
   await page
     .getByRole("heading", { name: "Could not load your booking information" })
     .waitFor();
-  app = await NestFactory.create(AppModule, { logger: false });
+  app = await NestFactory.create(AppModule, {
+    logger: false,
+    abortOnError: false,
+  });
   await app.listen(apiPort, "127.0.0.1");
   await page.getByRole("button", { name: "Try again" }).click();
   await page
@@ -452,6 +475,7 @@ try {
     } catch {}
     await Promise.race([new Promise((r) => next.once("exit", r)), delay(3000)]);
   }
+  await gateway?.close();
   await app?.close();
   await notifications?.close();
   await identity?.close();

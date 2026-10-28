@@ -17,6 +17,33 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:${WEB_PORT:-3000}}
+      IDENTITY_URL: http://identity:3003
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:-handoff-local-identity-key}
+      RENTAL_URL: http://rental:3004
+      RENTAL_SERVICE_KEY: ${RENTAL_SERVICE_KEY:-handoff-local-rental-key}
+    depends_on:
+      rental:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      start_period: 90s
+      retries: 12
+
+  rental:
+    image: handoff-rental:local
+    build:
+      context: .
+      target: rental
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      NODE_ENV: production
+      RENTAL_PORT: "3004"
+      RENTAL_SERVICE_KEY: ${RENTAL_SERVICE_KEY:-handoff-local-rental-key}
       DATABASE_URL: postgresql://handoff:handoff@refdata-db:5432/refdata
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:${WEB_PORT:-3000}}
       IDENTITY_URL: http://identity:3003
@@ -29,7 +56,7 @@ services:
       refdata-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3004/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
       timeout: 3s
       start_period: 90s
